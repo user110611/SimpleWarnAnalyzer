@@ -28,17 +28,26 @@
   }
 }
 *{box-sizing:border-box}
-html,body{height:100%}
+html{height:calc(100vh / var(--z,1));overflow:hidden}
+body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
 button{font:inherit;color:inherit;cursor:pointer}
 input,select{font:inherit;color:inherit}
 ::selection{background:var(--accent-bg)}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:var(--line2);border-radius:10px;border:2px solid var(--bg)}
+*{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:10px;border:3px solid transparent;background-clip:content-box;min-height:40px}
+::-webkit-scrollbar-thumb:hover{background:var(--faint);border:3px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-corner{background:transparent}
+html{zoom:var(--z,1)}
+.zgrp{display:flex;align-items:center;border:1px solid var(--line);background:var(--panel);border-radius:9px;height:34px;overflow:hidden}
+.zgrp button{border:0;background:none;width:30px;height:100%;color:var(--dim);font-size:16px;line-height:1}
+.zgrp button:hover{background:var(--panel2);color:var(--text)}
+.zgrp .zv{min-width:46px;text-align:center;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;cursor:pointer;border:0;background:none;width:auto;padding:0 4px}
 svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
-.app{display:grid;grid-template-columns:252px minmax(0,1fr);height:100vh}
+.app{display:grid;grid-template-columns:252px minmax(0,1fr);height:100%}
 
 /* ---------- sidebar ---------- */
 .side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
@@ -185,10 +194,10 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 /* ---------- modal ---------- */
 .modal{position:fixed;inset:0;display:none;place-items:center;z-index:40;background:rgba(0,0,0,.5)}
 .modal.on{display:grid}
-.mbox{width:min(520px,calc(100vw - 32px));max-height:80vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow)}
+.mbox{width:min(760px,calc(100vw / var(--z,1) - 32px));max-height:calc((100vh - 40px) / var(--z,1));resize:horizontal;overflow:hidden;min-width:min(420px,calc(100vw / var(--z,1) - 32px));display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow)}
 .mbox h3{margin:0;padding:20px 22px 6px;font-size:17px}
 .mbox p{margin:0;padding:0 22px 10px;color:var(--dim);font-size:13px}
-.mlist{overflow:auto;margin:0 22px 12px;border:1px solid var(--line);border-radius:10px;max-height:240px}
+.mlist{overflow:auto;margin:0 22px 12px;border:1px solid var(--line);border-radius:10px;max-height:min(40vh,360px);overscroll-behavior:contain}
 .mlist div{padding:7px 12px;font-size:13px;border-bottom:1px solid var(--line);word-break:break-all}
 .mlist div:last-child{border:0}
 .mlist small{display:block;color:var(--faint);font:11.5px var(--mono)}
@@ -239,7 +248,9 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 .srow .t{flex:1}.srow .t b{display:block;font-weight:600}.srow .t span{color:var(--dim);font-size:13px}
 .shead{padding:14px 22px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint)}
 .mlist .wl{display:flex;gap:10px;align-items:center}.mlist .wl>div{flex:1;min-width:0}
-.mbody{overflow:auto}
+.mbody{overflow:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain;scroll-behavior:smooth;background:linear-gradient(var(--panel) 30%,transparent) top,linear-gradient(transparent,var(--panel) 70%) bottom,radial-gradient(farthest-side at 50% 0,rgba(0,0,0,.35),transparent) top,radial-gradient(farthest-side at 50% 100%,rgba(0,0,0,.35),transparent) bottom;background-repeat:no-repeat;background-size:100% 28px,100% 28px,100% 10px,100% 10px;background-attachment:local,local,scroll,scroll}
+.mbox h3{flex:none}.mf{flex:none;border-top:1px solid var(--line)}
+.list,.drawer .dbody,.nav{overscroll-behavior:contain}
 @media (max-width:900px){
   .app{grid-template-columns:64px minmax(0,1fr)}
   .setbtn span{display:none}.setbtn{justify-content:center}
@@ -267,6 +278,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
     <header class="top">
       <div class="ttl"><h1 id="vTitle">Обзор</h1><div class="desc" id="vDesc"></div></div>
       <button class="btn" id="defMan" style="display:none"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/></svg>Управление Защитником</button>
+      <div class="zgrp" title="Масштаб (Ctrl + колесо, Ctrl +/−, Ctrl 0)"><button data-z="-" aria-label="Уменьшить">−</button><button class="zv" data-z="0" id="zv" title="Сбросить масштаб">100%</button><button data-z="+" aria-label="Увеличить">+</button></div>
       <button class="iconbtn" id="menuBtn" title="Меню"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
       <div class="menu" id="menu">
         <button data-m="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>Настройки</button>
@@ -390,7 +402,25 @@ const HIDE_SYS=new Set(['autostart','tasks','services','processes','network']);
 const STATE={running:'работает',stopped:'остановлена',enabled:'включена',disabled:'отключена',listen:'слушает',estab:'подключено'};
 const S={items:new Map(),cats:{},view:'autostart',lv:{danger:1,warn:1,note:1,ok:1,ack:0},sig:'',q:'',sort:'risk',hideSys:true,sel:new Set(),open:null,limit:150,running:0,total:0,done:0,t0:0,doneOnce:false,info:{admin:false},set:{whitelist:true,defender:false,entries:[]}};
 try{const sv=JSON.parse(localStorage.getItem('scn')||'{}');if(sv.sort)S.sort=sv.sort}catch(e){}
-const save=()=>{try{localStorage.setItem('scn',JSON.stringify({sort:S.sort}))}catch(e){}};
+const save=()=>{try{localStorage.setItem('scn',JSON.stringify({sort:S.sort,zoom:S.zoom}))}catch(e){}};
+S.zoom=1;try{const z=+(JSON.parse(localStorage.getItem('scn')||'{}').zoom);if(z>=.6&&z<=2)S.zoom=z}catch(e){}
+function setZoom(z){
+  S.zoom=Math.max(.6,Math.min(2,Math.round(z*100)/100));
+  document.documentElement.style.setProperty('--z',S.zoom);
+  const v=$('#zv');if(v)v.textContent=Math.round(S.zoom*100)+'%';
+  save();
+}
+setZoom(S.zoom);
+document.addEventListener('click',e=>{const b=e.target.closest('[data-z]');if(!b)return;const d=b.dataset.z;setZoom(d==='0'?1:S.zoom+(d==='+'?.1:-.1))});
+document.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();setZoom(S.zoom+(e.deltaY<0?.1:-.1))},{passive:false});
+document.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||e.altKey)return;
+  if(e.key==='+'||e.key==='=')setZoom(S.zoom+.1);
+  else if(e.key==='-'||e.key==='_')setZoom(S.zoom-.1);
+  else if(e.key==='0')setZoom(1);
+  else return;
+  e.preventDefault();
+});
 
 /* ---------- сканирование ---------- */
 async function scanCat(id,path){
@@ -772,7 +802,7 @@ $('#menu').onclick=async e=>{
   if(m==='csv'||m==='json')exportData(m);
   else if(m==='settings')openSettings();
   else if(m==='elev')elevate();
-  else if(m==='quit'){await api('/api/shutdown',{method:'POST'}).catch(()=>{});document.body.innerHTML='<div class="empty" style="height:100vh"><h3>Сканер остановлен</h3><p>Можно закрыть эту вкладку. Чтобы запустить снова — открой SySscaner.exe.</p></div>'}
+  else if(m==='quit'){await api('/api/shutdown',{method:'POST'}).catch(()=>{});document.body.innerHTML='<div class="empty" style="height:100%"><h3>Сканер остановлен</h3><p>Можно закрыть эту вкладку. Чтобы запустить снова — открой SySscaner.exe.</p></div>'}
 };
 /* ---------- настройки ---------- */
 let setDirty=false;
