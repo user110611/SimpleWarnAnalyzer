@@ -1370,7 +1370,25 @@ static bool applyAction(const WItem& it, string& err) {
     return deleteItem(it.del, err);
 }
 
-static string removeJson(const string& idsCsv) {
+// окончательное удаление файла или папки (без карантина)
+static bool purgePath(const wstring& p, bool isDir, string& err) {
+    if (p.empty()) { err = "у элемента нет файла на диске"; return false; }
+    if (isSysPath(lowerW(p))) { err = "защищённый системный путь"; return false; }
+    if (!fileExists(p)) { err = "файл уже отсутствует"; return false; }
+    wchar_t me[MAX_PATH]; GetModuleFileNameW(nullptr, me, MAX_PATH);
+    if (lowerW(p) == lowerW(me)) { err = "это сам сканер"; return false; }
+    std::error_code ec;
+    if (isDir) { fs::remove_all(p, ec); if (ec) { err = ec.message(); return false; } return true; }
+    SetFileAttributesW(p.c_str(), FILE_ATTRIBUTE_NORMAL);
+    if (!DeleteFileW(p.c_str())) {
+        DWORD e = GetLastError();
+        err = e == 32 ? "файл занят — его использует запущенная программа (сначала заверши процесс)" : e == 5 ? "нет доступа (запусти от администратора)" : "код ошибки " + std::to_string(e);
+        return false;
+    }
+    return true;
+}
+
+static string removeJson(const string& idsCsv, const string& mode) {
     string o = "{\"results\":[";
     bool first = true;
     size_t pos = 0;
@@ -1388,8 +1406,12 @@ static string removeJson(const string& idsCsv) {
         }
         string err; bool ok = false;
         if (!found) err = "элемент не найден — обнови список";
-        else ok = applyAction(it, err);
-        if (found) jlog(ok ? "action" : "error", string(ok ? "Действие «" : "Не удалось выполнить «") + it.action + "»: " + itemLabel(it) + (ok ? "" : " (" + err + ")"));
+        else if (mode == "purge") {
+            wstring p = it.action == "quarantine" ? it.del.path : (!it.full.empty() ? it.full : it.exe);
+            ok = purgePath(p, it.isDir, err);
+        } else ok = applyAction(it, err);
+        if (found) jlog(ok ? "action" : "error", string(ok ? (mode == "purge" ? "Файл удалён навсегда: " : "Действие «") : "Не удалось выполнить «") +
+                        (mode == "purge" ? string() : it.action + "»: ") + itemLabel(it) + (ok ? "" : " (" + err + ")"));
         if (ok) {
             std::lock_guard<std::mutex> lk(g_storeMx);
             g_store.erase(id);
@@ -1657,6 +1679,93 @@ static string hostsChangeJson(const string& op, const string& oldLine, const str
     return "{\"ok\":true}";
 }
 
+// ---------- карантин: просмотр, возврат, удаление ----------
+static bool qNameOk(const string& n) {
+    if (n.empty() || n.size() > 260 || n.find_first_of("\\/:") != string::npos || n.find("..") != string::npos) return false;
+    return n.size() > 11 && n.compare(n.size() - 11, 11, ".quarantine") == 0;
+}
+static string quarantineListJson() {
+    wstring dir = g_exeDir + L"\\Quarantine";
+    string o = "{\"ok\":true,\"dir\":" + jstr(dir) + ",\"items\":[";
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((dir + L"\\*.quarantine").c_str(), &fd);
+    bool first = true;
+    if (h != INVALID_HANDLE_VALUE) {
+        do {
+            wstring fn = fd.cFileName;
+            bool isDir = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+            long long sz = isDir ? -1 : (((long long)fd.nFileSizeHigh << 32) | fd.nFileSizeLow);
+            wstring nm = fn.substr(0, fn.size() - 11), when;
+            size_t us = nm.find(L"__");
+            if (nm.size() > 17 && us == 15) {
+                when = nm.substr(0, 4) + L"-" + nm.substr(4, 2) + L"-" + nm.substr(6, 2) + L" " + nm.substr(9, 2) + L":" + nm.substr(11, 2) + L":" + nm.substr(13, 2);
+                nm = nm.substr(17);
+            }
+            string origin = readFileStr(dir + L"\\" + fn + L".origin.txt");
+            if (!first) o += ",";
+            first = false;
+            o += "{\"file\":" + jstr(fn) + ",\"name\":" + jstr(nm) + ",\"when\":" + jstr(when) + ",\"origin\":\"" + jesc(origin) +
+                 "\",\"size\":" + std::to_string(sz) + ",\"dir\":" + (isDir ? "true" : "false") + "}";
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    return o + "]}";
+}
+static string quarantineActJson(const string& file, const string& op) {
+    auto err = [](const string& e) { return "{\"ok\":false,\"error\":\"" + jesc(e) + "\"}"; };
+    wstring dir = g_exeDir + L"\\Quarantine";
+    if (op == "openfolder") {
+        CreateDirectoryW(dir.c_str(), nullptr);
+        ShellExecuteW(nullptr, L"open", dir.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        return "{\"ok\":true}";
+    }
+    if (op == "empty") {
+        int n = 0;
+        WIN32_FIND_DATAW fd;
+        HANDLE h = FindFirstFileW((dir + L"\\*").c_str(), &fd);
+        vector<wstring> all;
+        if (h != INVALID_HANDLE_VALUE) { do { wstring f = fd.cFileName; if (f != L"." && f != L"..") all.push_back(f); } while (FindNextFileW(h, &fd)); FindClose(h); }
+        for (auto& f : all) {
+            std::error_code ec; fs::remove_all(dir + L"\\" + f, ec);
+            if (!ec && f.size() > 11 && f.compare(f.size() - 11, 11, L".quarantine") == 0) n++;
+        }
+        jlog("action", "Карантин очищен (объектов: " + std::to_string(n) + ")");
+        return "{\"ok\":true}";
+    }
+    if (!qNameOk(file)) return err("некорректное имя");
+    wstring wf = toWide(file), full = dir + L"\\" + wf;
+    if (!fileExists(full)) return err("объект не найден в карантине — обнови список");
+    bool isDir = (GetFileAttributesW(full.c_str()) & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    string origin = readFileStr(full + L".origin.txt");
+    while (!origin.empty() && (origin.back() == '\n' || origin.back() == '\r')) origin.pop_back();
+    if (op == "open") {
+        wstring args = L"/select,\"" + full + L"\"";
+        ShellExecuteW(nullptr, L"open", L"explorer.exe", args.c_str(), nullptr, SW_SHOWNORMAL);
+        return "{\"ok\":true}";
+    }
+    if (op == "delete") {
+        std::error_code ec; fs::remove_all(full, ec);
+        if (ec) return err(ec.message());
+        DeleteFileW((full + L".origin.txt").c_str());
+        jlog("action", "Удалено из карантина навсегда: " + file + (origin.empty() ? "" : " (было: " + origin + ")"));
+        return "{\"ok\":true}";
+    }
+    if (op == "restore") {
+        wstring dest = toWide(origin);
+        if (dest.empty()) return err("неизвестно, откуда файл — вернуть нельзя (удали или забери вручную из папки Quarantine)");
+        if (isSysPath(lowerW(dest))) return err("защищённый системный путь");
+        if (fileExists(dest)) return err("по этому пути уже есть файл: " + origin);
+        std::error_code ec;
+        fs::create_directories(fs::path(dest).parent_path(), ec);
+        if (isDir) { fs::rename(full, dest, ec); if (ec) { ec.clear(); fs::copy(full, dest, fs::copy_options::recursive, ec); if (!ec) fs::remove_all(full, ec); } if (ec) return err(ec.message()); }
+        else if (!MoveFileExW(full.c_str(), dest.c_str(), MOVEFILE_COPY_ALLOWED)) return err("код ошибки " + std::to_string(GetLastError()));
+        DeleteFileW((full + L".origin.txt").c_str());
+        jlog("action", "Возвращено из карантина: " + origin);
+        return "{\"ok\":true}";
+    }
+    return err("неизвестное действие");
+}
+
 static wstring findMpCmd() {
     wstring base = expand(L"%ProgramData%\\Microsoft\\Windows Defender\\Platform"), best;
     WIN32_FIND_DATAW fd;
@@ -1834,7 +1943,7 @@ static void handleClient(SOCKET s) {
             else reply(s, 200, JSON, scanJson(cat, toWide(q["path"])));
         } else if (path == "/api/remove" && method == "POST") {
             auto b = parseQuery(body);
-            reply(s, 200, JSON, removeJson(b["ids"]));
+            reply(s, 200, JSON, removeJson(b["ids"], b["mode"]));
         } else if (path == "/api/reveal" && method == "POST") {
             reply(s, 200, JSON, revealJson(atol(q["id"].c_str())));
         } else if (path == "/api/settings" && method == "GET") {
@@ -1857,6 +1966,11 @@ static void handleClient(SOCKET s) {
         } else if (path == "/api/ack" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, ackJson(b["ids"], b["on"] != "0"));
+        } else if (path == "/api/quarantine" && method == "GET") {
+            reply(s, 200, JSON, quarantineListJson());
+        } else if (path == "/api/quarantine/act" && method == "POST") {
+            auto b = parseQuery(body);
+            reply(s, 200, JSON, quarantineActJson(b["file"], b["op"]));
         } else if (path == "/api/hosts/change" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, hostsChangeJson(b["op"], b["old"], b["ip"], b["names"]));

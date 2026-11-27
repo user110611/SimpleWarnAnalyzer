@@ -398,6 +398,7 @@ const VIEWS={
   all:{n:'Обзор',h:'Всё найденное во всех разделах, самое подозрительное — сверху. Нажми на элемент, чтобы увидеть подробности.'},
   autostart:{n:'Автозагрузка',h:'Всё, что запускается само при входе в Windows: реестр, папки, планировщик и редкие места закрепления вирусов (IFEO, AppInit, Active Setup). Службы — в разделе «Система».'},
   journal:{n:'Журнал',h:'Что и когда происходило: новые находки, отметки «прочитано», белый список, удаления и карантин, изменения Защитника.'},
+  quarantine:{n:'Карантин',h:'Файлы, которые сканер убрал из системы. Здесь их можно вернуть на место или удалить навсегда.'},
   archive:{n:'Архив',h:'Элементы, отмеченные прочитанными. Они не показываются в разделах и не считаются угрозами. Выбери элемент и нажми «Вернуть», чтобы достать его из архива.'}
 };
 const HIDE_SYS=new Set(['autostart','tasks','services','processes','network']);
@@ -502,7 +503,7 @@ function drawNav(){
     else if(f)b=f.danger?['danger',f.danger]:['warn',f.warn];
     h+=btn(c.id,c.n,ic[c.i],b,total[c.id]);
   }
-  h+=`<div class="grp">История</div>`+btn('journal','Журнал',ic.clock,null,null);
+  h+=`<div class="grp">История</div>`+btn('journal','Журнал',ic.clock,null,null)+btn('quarantine','Карантин',ic.shield,null,null);
   if(arch||S.view==='archive')h+=btn('archive','Архив',ic.ok,null,arch);
   $('#nav').innerHTML=h;
   function btn(id,n,icon,b,t){
@@ -529,7 +530,7 @@ function drawHead(){
   $('#scanBar').style.width=S.running?(S.done/S.total*100)+'%':'0';
 }
 function drawStrip(){
-  if(S.view==='journal'){$('#strip').innerHTML='';$('#verdict').innerHTML='';$('#ackAll').style.display='none';$('#places').style.display='none';return}
+  if(S.view==='journal'||S.view==='quarantine'){$('#strip').innerHTML='';$('#verdict').innerHTML='';$('#ackAll').style.display='none';$('#places').style.display='none';return}
   const c=counts(scope());
   $('#strip').innerHTML=(S.view==='archive'?[]:['danger','warn','note','ok']).map(k=>`<button class="stat ${k} ${S.lv[k]?'':'off'} ${c[k]?'':'zero'}" data-lv="${k}"><span class="n">${c[k]}</span><span class="t"><i></i>${LV[k]}</span></button>`).join('');
   const all=c, here=S.view==='all'?'':' в этом разделе';
@@ -582,6 +583,7 @@ function row(i){
 function drawList(){
   const L=$('#list');
   if(S.view==='journal'){drawJournal();return}
+  if(S.view==='quarantine'){drawQuarantine();return}
   if(S.running&&!S.items.size){L.innerHTML='<div class="skel"></div>'.repeat(9);return}
   if(S.view==='custom'&&!S.cats.custom&&!S.items.size){L.innerHTML=`<div class="empty"><h3>Выбери папку</h3><p>Введи путь выше и нажми «Показать».</p></div>`;return}
   const st=S.cats[S.view];
@@ -597,6 +599,38 @@ function drawList(){
   if(a.length>shown.length)h+=`<button class="btn more" id="more">Показать ещё (${a.length-shown.length})</button>`;
   if(st&&st.trunc)h+=`<div class="empty" style="padding:20px"><p>Список слишком большой и показан не полностью.</p></div>`;
   L.innerHTML=h;
+}
+let QR=null;
+async function loadQuarantine(){
+  QR=null;drawList();
+  try{const r=await api('/api/quarantine');QR=r.ok===false?{err:r.error}:r}catch(e){QR={err:'нет связи со сканером'}}
+  if(S.view==='quarantine')drawList();
+}
+function drawQuarantine(){
+  const L=$('#list');
+  if(!QR){L.innerHTML='<div class="skel"></div>'.repeat(4);return}
+  if(QR.err){L.innerHTML=`<div class="empty"><h3>Карантин недоступен</h3><p>${esc(QR.err)}</p></div>`;return}
+  const q=S.q.trim().toLowerCase();
+  const a=QR.items.filter(e=>!q||(e.name+' '+e.origin).toLowerCase().includes(q)).sort((x,y)=>y.when.localeCompare(x.when));
+  let h=`<div style="display:flex;gap:8px;align-items:center;padding:4px 4px 12px;flex-wrap:wrap"><span class="pth" style="margin:0;flex:1;min-width:200px" title="${esc(QR.dir)}">Папка: ${esc(QR.dir)}</span><button class="btn" data-qa="folder">${ic.open}Открыть папку</button>${QR.items.length?`<button class="btn danger" data-qa="empty">${ic.trash}Очистить карантин</button>`:''}</div>`;
+  if(!a.length)h+=`<div class="empty"><div class="big">${ic.ok}</div><h3>${QR.items.length?'Ничего не найдено':'Карантин пуст'}</h3><p>Сюда попадают файлы после действия «В карантин».</p></div>`;
+  for(const e of a)h+=`<div class="row" style="cursor:default;display:flex;align-items:center;gap:14px"><div style="flex:1;min-width:0"><div class="nm">${e.dir?'📁 ':''}${esc(e.name)}</div><div class="pth" style="overflow-wrap:anywhere;white-space:normal" title="${esc(e.origin)}">${e.origin?'Было: '+esc(e.origin):'Исходный путь неизвестен'}</div><div class="pth" style="margin:0">${esc(e.when)}${e.size>=0?' · '+fmtSize(e.size):''}</div></div><button class="btn" data-qa="restore" data-f="${esc(e.file)}">Вернуть</button><button class="btn danger" data-qa="delete" data-f="${esc(e.file)}">${ic.trash}Удалить</button></div>`;
+  L.innerHTML=h;
+}
+$('#list').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-qa]');if(!b||S.view!=='quarantine')return;
+  const op=b.dataset.qa,f=b.dataset.f||'';
+  if(op==='folder'){await qAct('','openfolder');return}
+  if(op==='empty'&&!confirm(QR.items.length+' объект(ов) будет удалено из карантина навсегда. Восстановить их будет нельзя. Продолжить?'))return;
+  if(op==='delete'&&!confirm('Удалить из карантина навсегда? Восстановить файл будет нельзя.'))return;
+  await qAct(f,op);
+});
+async function qAct(file,op){
+  const r=await api('/api/quarantine/act',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'file='+encodeURIComponent(file)+'&op='+op}).catch(()=>({ok:false,error:'нет связи со сканером'}));
+  if(!r.ok){toast(r.error||'не удалось',true);return}
+  if(op==='openfolder')return;
+  toast(op==='restore'?'Файл возвращён на место':op==='delete'?'Удалено навсегда':'Карантин очищен');
+  loadQuarantine();
 }
 const JK={found:['Находка','bad'],ack:['Архив',''],trust:['Белый список','good'],action:['Действие','mid'],error:['Ошибка','bad'],defender:['Защитник','good'],start:['Запуск','']};
 let JR=null;
@@ -663,6 +697,7 @@ function drawDrawer(){
     ${(i.level==='danger'||i.level==='warn'||i.level==='note')&&!i.wl?(i.ack?`<button class="btn" id="dUnack">${ic.ok}Вернуть из архива</button>`:`<button class="btn ${i.cat==='defender'?'primary':''}" id="dAck">${ic.ok}В архив (прочитано)</button>`):''}
     ${S.set.whitelist&&i.cat!=='defender'?(i.wl?`<button class="btn" id="dUntrust">${ic.star}Убрать из белого списка</button>`:`<button class="btn" id="dTrust">${ic.star}Доверять</button>`):''}
     ${S.set.defender&&(i.full||i.path)?`<button class="btn" id="dDef">${ic.shield}Проверить Защитником</button>`:''}
+    ${(i.path||i.full)&&!['processes','services','network','hosts','defender'].includes(i.cat)&&i.sig!=='system'&&i.sig!=='missing'?`<button class="btn danger" id="dPurge">${ic.trash}Удалить файл сразу</button>`:''}
     ${i.cat==='hosts'?`<button class="btn" id="dHEdit">Изменить запись</button><button class="btn danger" id="dHDel">${ic.trash}Удалить запись</button>`:''}
     ${act?`<button class="btn ${i.level==='danger'||i.level==='warn'?'danger':''}" id="dAct">${ic.trash}${act[0]}</button>`:''}
    </div>`;
@@ -721,6 +756,7 @@ $('#nav').onclick=e=>{
   go(b.dataset.v);
 };
 function go(v){
+  if(v==='quarantine'){S.view=v;S.q='';$('#q').value='';closeDrawer();draw();loadQuarantine();return}
   if(v==='journal'){S.view=v;S.q='';$('#q').value='';closeDrawer();draw();loadJournal();return}
   if(v==='defender'&&!S.set.defender){toast('Доступ к Защитнику выключен — включи его в настройках');openSettings();return}
   S.view=v;S.limit=150;S.lv.ok=v!=='all';S.hideSys=HIDE_SYS.has(v);closeDrawer();draw();
@@ -757,6 +793,7 @@ $('#drawer').onclick=async e=>{
   else if(e.target.closest('#dCopy')){try{await navigator.clipboard.writeText(i.full||i.path||i.detail);toast('Путь скопирован')}catch(_){toast('Не удалось скопировать',1)}}
   else if(e.target.closest('#dReveal')){const r=await api('/api/reveal?id='+i.id,{method:'POST'});if(!r.ok)toast(r.error,1)}
   else if(e.target.closest('#dAct'))confirmRemove([i.id]);
+  else if(e.target.closest('#dPurge'))purgeFile(i);
   else if(e.target.closest('#dHEdit'))openHostEdit(i);
   else if(e.target.closest('#dHDel'))hostDelete(i);
   else if(e.target.closest('#dAck'))ackItems([i.id],true);
@@ -958,6 +995,14 @@ function openHostEdit(i){
   };
   $('#hSave').onclick=save;
   $('#mbox').querySelectorAll('input').forEach(x=>x.onkeydown=e=>{if(e.key==='Enter')save()});
+}
+async function purgeFile(i){
+  const p=i.full||i.path;
+  if(!confirm(['Удалить файл навсегда?',p||i.path,'Он не попадёт в карантин и не будет восстановлен. Записи автозапуска, ведущие на него, останутся — удали их отдельно.'].join(String.fromCharCode(10)+String.fromCharCode(10))))return;
+  const r=await api('/api/remove',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'mode=purge&ids='+i.id}).catch(()=>({results:[{ok:false,error:'нет связи со сканером'}]}));
+  const x=(r.results||[])[0]||{ok:false,error:r.error||'не удалось'};
+  if(!x.ok){toast(x.error||'не удалось удалить',true);return}
+  S.items.delete(i.id);S.sel.delete(i.id);closeDrawer();draw();toast('Файл удалён навсегда');
 }
 async function hostDelete(i){
   if(!confirm(['Удалить запись из файла hosts?',i.detail,'Копия файла будет сохранена в папку hosts_backups.'].join('\n\n')))return;
