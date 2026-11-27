@@ -1,5 +1,7 @@
 # SimpleWarnAnalyzer
 
+[![Stars](https://img.shields.io/github/stars/user110611/SimpleWarnAnalyzer?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/stargazers) [![Forks](https://img.shields.io/github/forks/user110611/SimpleWarnAnalyzer?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/forks) [![Issues](https://img.shields.io/github/issues/user110611/SimpleWarnAnalyzer?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/issues) [![Downloads](https://img.shields.io/github/downloads/user110611/SimpleWarnAnalyzer/total?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/releases)
+
 [English](README.md) · [Русский](README.ru.md) · **Italiano**
 
 Aiuta ad analizzare le aree più vulnerabili del computer.
