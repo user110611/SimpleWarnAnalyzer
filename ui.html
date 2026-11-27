@@ -460,7 +460,7 @@ function drawNav(){
   h+=btn('autostart','Автозагрузка',ic.boot,af.danger?['danger',af.danger]:af.warn?['warn',af.warn]:null,S.doneOnce?an:null);
   let g='';
   for(const c of CATS){
-    if(c.opt&&!S.set[c.opt])continue;
+    if(c.opt&&!S.set[c.opt]&&c.id!=='defender')continue;
     if(c.g!==g){g=c.g;h+=`<div class="grp">${g}</div>`}
     const f=flagged[c.id],st=S.cats[c.id];
     let b=null;
@@ -658,6 +658,7 @@ $('#nav').onclick=e=>{
   go(b.dataset.v);
 };
 function go(v){
+  if(v==='defender'&&!S.set.defender){toast('Доступ к Защитнику выключен — включи его в настройках');openSettings();return}
   S.view=v;S.limit=150;S.lv.ok=v!=='all';S.hideSys=HIDE_SYS.has(v);closeDrawer();draw();
   $('#list').scrollTop=0;
   if(v==='custom')$('#cPath').focus();
