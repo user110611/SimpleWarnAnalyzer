@@ -200,6 +200,9 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 .toast.bad{border-color:var(--danger)}
 @keyframes ti{from{transform:translateY(10px);opacity:0}}
 
+.setwrap{padding:0 8px 8px}
+.setbtn{width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);background:none;border-radius:8px;color:var(--dim)}
+.setbtn:hover{color:var(--text);border-color:var(--line2);background:var(--panel2)}
 .places{display:none;flex-wrap:wrap;gap:6px;padding:8px 24px 0}
 .place{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font-size:12.5px}
 .place:hover{border-color:var(--line2);color:var(--text)}
@@ -223,6 +226,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 .mbody{overflow:auto}
 @media (max-width:900px){
   .app{grid-template-columns:64px minmax(0,1fr)}
+  .setbtn span{display:none}.setbtn{justify-content:center}
   .brand span,.nav .lbl,.grp,.side-foot span,.side-foot a,.scanbtn span,.nav .pill{display:none}
   .brand{justify-content:center;padding:16px 0}
   .scanbtn{margin:2px 10px 10px;padding:10px}
@@ -239,6 +243,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
     <div class="brand"><div class="logo"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/><path d="m9 12 2 2 4-4"/></svg></div><span>Сканер системы</span></div>
     <button class="scanbtn" id="scanBtn"><span id="scanIc" style="display:grid"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span><span id="scanLbl">Быстрый анализ</span><i class="bar" id="scanBar"></i></button>
     <nav class="nav" id="nav"></nav>
+    <div class="setwrap"><button class="setbtn" id="setBtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><span>Настройки</span></button></div>
     <div class="side-foot" id="foot"><i class="led"></i><span id="footTxt">…</span></div>
   </aside>
 
@@ -624,6 +629,7 @@ $('#places').onclick=e=>{const b=e.target.closest('[data-v]');if(b)go(b.dataset.
 $('#hsys').onclick=()=>{S.hideSys=!S.hideSys;S.limit=150;draw()};
 $('#strip').onclick=e=>{const b=e.target.closest('[data-lv]');if(!b)return;S.lv[b.dataset.lv]^=1;S.limit=150;draw()};
 $('#scanBtn').onclick=scanAll;
+$('#setBtn').onclick=openSettings;
 $('#q').oninput=e=>{S.q=e.target.value;S.limit=150;drawList()};
 $('#fSig').onchange=e=>{S.sig=e.target.value;S.limit=150;drawList()};
 $('#fSort').onchange=e=>{S.sort=e.target.value;save();drawList()};
