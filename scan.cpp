@@ -1,3 +1,5 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <tlhelp32.h>
 #include <filesystem>
@@ -475,8 +477,18 @@ static void menu() {
     printf("> ");
 }
 
-int main() {
+// ---------- веб-интерфейс (по умолчанию) ----------
+#include "ui_html.h"   // генерируется build.ps1 из ui.html
+#include "webmode.h"
+
+int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
+
+    bool consoleMode = false;
+    for (int i = 1; i < argc; i++)
+        if (!strcmp(argv[i], "--console")) consoleMode = true;
+    if (!consoleMode) return runWeb(argc, argv);   // старое меню: SySscaner.exe --console
+
     for (;;) {
         menu();
         wstring in = readLineW();

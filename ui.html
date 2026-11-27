@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="tok" content="__TOKEN__">
+<title>Сканер системы</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%236ea8ff' d='M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5z'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0c0e12; --panel:#12151b; --panel2:#171b22; --line:#232832; --line2:#2d3440;
+  --text:#e7eaf0; --dim:#8b94a3; --faint:#5d6674;
+  --accent:#6ea8ff; --accent-bg:rgba(110,168,255,.12);
+  --danger:#ff5f70; --warn:#ffb454; --note:#8fa3c4; --ok:#3ddc97;
+  --danger-bg:rgba(255,95,112,.12); --warn-bg:rgba(255,180,84,.12); --note-bg:rgba(143,163,196,.12); --ok-bg:rgba(61,220,151,.1);
+  --shadow:0 20px 60px rgba(0,0,0,.5);
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme:light){
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f5; --line:#e3e6ec; --line2:#d3d8e0;
+    --text:#161a21; --dim:#667085; --faint:#98a2b3;
+    --accent:#2f6df6; --accent-bg:rgba(47,109,246,.09);
+    --danger:#e5304a; --warn:#d9822b; --note:#6b7f9e; --ok:#12a66a;
+    --danger-bg:rgba(229,48,74,.09); --warn-bg:rgba(217,130,43,.1); --note-bg:rgba(107,127,158,.1); --ok-bg:rgba(18,166,106,.09);
+    --shadow:0 20px 50px rgba(20,30,50,.18);
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select{font:inherit;color:inherit}
+::selection{background:var(--accent-bg)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:10px;border:2px solid var(--bg)}
+::-webkit-scrollbar-track{background:transparent}
+svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.app{display:grid;grid-template-columns:252px minmax(0,1fr);height:100vh}
+
+/* ---------- sidebar ---------- */
+.side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px;font-weight:600;letter-spacing:.2px}
+.brand .logo{width:28px;height:28px;border-radius:8px;background:var(--accent-bg);color:var(--accent);display:grid;place-items:center}
+.brand .logo svg{width:16px;height:16px}
+.scanbtn{margin:2px 14px 14px;padding:11px 14px;border-radius:10px;border:0;background:var(--accent);color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;overflow:hidden;transition:filter .15s,transform .05s}
+@media (prefers-color-scheme:light){.scanbtn{color:#fff}}
+.scanbtn:hover{filter:brightness(1.08)}
+.scanbtn:active{transform:translateY(1px)}
+.scanbtn[disabled]{cursor:progress;filter:none}
+.scanbtn .bar{position:absolute;left:0;bottom:0;height:3px;background:rgba(255,255,255,.55);width:0;transition:width .25s}
+.nav{flex:1;overflow:auto;padding:0 8px 8px}
+.grp{font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);padding:14px 10px 6px}
+.nav button{width:100%;display:flex;align-items:center;gap:10px;padding:7px 10px;border:0;background:none;border-radius:8px;text-align:left;color:var(--dim);transition:background .12s,color .12s}
+.nav button:hover{background:var(--panel2);color:var(--text)}
+.nav button.on{background:var(--accent-bg);color:var(--text)}
+.nav button.on svg{color:var(--accent)}
+.nav .lbl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:11.5px;min-width:22px;text-align:center;padding:1px 7px;border-radius:20px;background:var(--panel2);color:var(--faint);font-variant-numeric:tabular-nums}
+.pill.danger{background:var(--danger-bg);color:var(--danger)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.spin{background:none;padding:0}
+.side-foot{border-top:1px solid var(--line);padding:12px 14px;font-size:12.5px;color:var(--dim);display:flex;align-items:center;gap:8px}
+.side-foot .led{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.side-foot.lim .led{background:var(--warn)}
+.side-foot a{margin-left:auto;color:var(--accent);cursor:pointer;text-decoration:none}
+.side-foot a:hover{text-decoration:underline}
+
+/* ---------- main ---------- */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{display:flex;align-items:center;gap:12px;padding:16px 24px 6px}
+.top h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.2px}
+.top .desc{color:var(--dim);font-size:13px;margin-top:2px;max-width:70ch}
+.top .ttl{flex:1;min-width:0}
+.iconbtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;color:var(--dim)}
+.iconbtn:hover{color:var(--text);border-color:var(--line2)}
+.menu{position:absolute;right:24px;top:56px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:6px;min-width:240px;box-shadow:var(--shadow);z-index:30;display:none}
+.menu.open{display:block}
+.menu button{width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:8px;display:flex;gap:10px;align-items:center;color:var(--text)}
+.menu button:hover{background:var(--panel2)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:5px 0}
+
+.strip{display:flex;gap:10px;padding:10px 24px 4px;flex-wrap:wrap}
+.stat{flex:1 1 130px;max-width:210px;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:10px 14px;text-align:left;display:flex;flex-direction:column;gap:2px;transition:border-color .15s,opacity .15s,background .15s}
+.stat:hover{border-color:var(--line2)}
+.stat .n{font-size:24px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat .t{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.stat .t i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.stat.danger .n{color:var(--danger)} .stat.danger i{background:var(--danger)}
+.stat.warn .n{color:var(--warn)} .stat.warn i{background:var(--warn)}
+.stat.note .n{color:var(--note)} .stat.note i{background:var(--note)}
+.stat.ok .n{color:var(--ok)} .stat.ok i{background:var(--ok)}
+.stat.off{opacity:.45;background:transparent}
+.stat.zero .n{color:var(--faint)}
+
+.verdict{padding:10px 24px 0;color:var(--dim);font-size:13px;display:flex;gap:8px;align-items:center;min-height:30px}
+.verdict b{color:var(--text);font-weight:600}
+
+.tools{display:flex;gap:10px;padding:12px 24px;align-items:center;flex-wrap:wrap}
+.search{flex:1 1 260px;position:relative;max-width:520px}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint)}
+.search input{width:100%;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel);padding:0 36px 0 36px;outline:0}
+.search input:focus{border-color:var(--accent)}
+.search kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:11px var(--mono);color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:0 5px}
+.sel{height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel);padding:0 10px;outline:0;color:var(--text)}
+.sel:focus{border-color:var(--accent)}
+.custom{display:none;padding:0 24px 10px;gap:8px}
+.custom.on{display:flex}
+.custom input{flex:1;max-width:620px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel);padding:0 12px;outline:0;font-family:var(--mono);font-size:13px}
+.custom input:focus{border-color:var(--accent)}
+.btn{height:36px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:var(--panel);display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.ghost{border-color:transparent;background:none;color:var(--dim)}
+.btn.ghost:hover{color:var(--text)}
+.btn[disabled]{opacity:.5;pointer-events:none}
+
+.list{flex:1;overflow:auto;padding:0 16px 80px 24px;min-height:0}
+.row{display:grid;grid-template-columns:22px 10px minmax(0,1fr) auto 38px;gap:12px;align-items:center;padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.row:hover{background:var(--panel)}
+.row.act{background:var(--panel);border-color:var(--line2)}
+.row + .row{margin-top:1px}
+.chk{display:grid;place-items:center}
+.chk input{appearance:none;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line2);background:none;margin:0;cursor:pointer;display:grid;place-items:center;transition:.1s}
+.chk input:checked{background:var(--accent);border-color:var(--accent)}
+.chk input:checked::after{content:"";width:8px;height:4px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.chk.none input{visibility:hidden}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);opacity:.55}
+.lv-note .dot{background:var(--note);opacity:1}
+.lv-warn .dot{background:var(--warn);opacity:1;box-shadow:0 0 0 3px var(--warn-bg)}
+.lv-danger .dot{background:var(--danger);opacity:1;box-shadow:0 0 0 3px var(--danger-bg)}
+.rmain{min-width:0}
+.nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm .sub{color:var(--faint);font-weight:400;margin-left:8px;font-size:12.5px}
+.row.lv-ok .nm{color:var(--dim)}
+.pth{font:12px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.tags{display:flex;gap:6px;align-items:center}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:6px;background:var(--panel2);color:var(--dim);white-space:nowrap}
+.row:hover .tag{background:var(--bg)}
+.tag.bad{background:var(--danger-bg);color:var(--danger)}
+.tag.mid{background:var(--warn-bg);color:var(--warn)}
+.tag.good{background:var(--ok-bg);color:var(--ok)}
+.score{font:12px var(--mono);text-align:right;color:var(--faint);font-variant-numeric:tabular-nums}
+.lv-danger .score{color:var(--danger)} .lv-warn .score{color:var(--warn)}
+.more{display:block;margin:14px auto;}
+.empty{display:grid;place-items:center;text-align:center;padding:70px 20px;color:var(--dim)}
+.empty .big{width:56px;height:56px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;margin-bottom:14px}
+.empty .big svg{width:26px;height:26px}
+.empty h3{margin:0 0 4px;color:var(--text);font-weight:600}
+.empty p{margin:0 0 14px;max-width:46ch}
+.skel{height:44px;border-radius:10px;margin:6px 0;background:linear-gradient(90deg,var(--panel) 25%,var(--panel2) 50%,var(--panel) 75%);background-size:200% 100%;animation:sh 1.3s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--line2);border-top-color:var(--accent);animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.scanbtn .spinner{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+
+.bulk{position:absolute;left:50%;bottom:22px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--panel);border:1px solid var(--line2);box-shadow:var(--shadow);border-radius:14px;padding:8px 8px 8px 16px;display:flex;align-items:center;gap:12px;transition:.18s;z-index:10}
+.bulk.on{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+
+/* ---------- drawer ---------- */
+.shade{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:.18s;z-index:20}
+.shade.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--panel);border-left:1px solid var(--line2);transform:translateX(100%);transition:transform .22s cubic-bezier(.2,.7,.2,1);z-index:21;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.drawer.on{transform:none}
+.dh{padding:20px 22px 14px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start}
+.dh h2{margin:0;font-size:17px;font-weight:600;word-break:break-all}
+.dh .lvl{display:inline-flex;gap:6px;align-items:center;margin-top:6px;font-size:12.5px;padding:2px 10px;border-radius:20px}
+.lvl.danger{background:var(--danger-bg);color:var(--danger)} .lvl.warn{background:var(--warn-bg);color:var(--warn)}
+.lvl.note{background:var(--note-bg);color:var(--note)} .lvl.ok{background:var(--ok-bg);color:var(--ok)}
+.db{flex:1;overflow:auto;padding:16px 22px}
+.sect{font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);margin:6px 0 8px}
+.why{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:6px}
+.why li{padding:8px 12px;border-radius:9px;background:var(--panel2);display:flex;gap:10px;align-items:flex-start}
+.why li svg{color:var(--warn);margin-top:2px}
+.why.clean li svg{color:var(--ok)}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 14px;margin:0 0 16px}
+.kv dt{color:var(--dim)}
+.kv dd{margin:0;word-break:break-all;font-size:13px}
+.kv dd.m{font-family:var(--mono);font-size:12px}
+.df{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- modal ---------- */
+.modal{position:fixed;inset:0;display:none;place-items:center;z-index:40;background:rgba(0,0,0,.5)}
+.modal.on{display:grid}
+.mbox{width:min(520px,calc(100vw - 32px));max-height:80vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow)}
+.mbox h3{margin:0;padding:20px 22px 6px;font-size:17px}
+.mbox p{margin:0;padding:0 22px 10px;color:var(--dim);font-size:13px}
+.mlist{overflow:auto;margin:0 22px 12px;border:1px solid var(--line);border-radius:10px;max-height:240px}
+.mlist div{padding:7px 12px;font-size:13px;border-bottom:1px solid var(--line);word-break:break-all}
+.mlist div:last-child{border:0}
+.mlist small{display:block;color:var(--faint);font:11.5px var(--mono)}
+.mlist .err{color:var(--danger)}
+.mf{padding:12px 22px 20px;display:flex;justify-content:flex-end;gap:8px}
+
+.toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:60}
+.toast{background:var(--panel);border:1px solid var(--line2);box-shadow:var(--shadow);border-radius:12px;padding:10px 14px;max-width:360px;animation:ti .2s}
+.toast.bad{border-color:var(--danger)}
+@keyframes ti{from{transform:translateY(10px);opacity:0}}
+
+.places{display:none;flex-wrap:wrap;gap:6px;padding:8px 24px 0}
+.place{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);background:var(--panel);color:var(--dim);font-size:12.5px}
+.place:hover{border-color:var(--line2);color:var(--text)}
+.place i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.place b{font-weight:500;color:var(--faint);font-variant-numeric:tabular-nums}
+.place.warn i{background:var(--warn)} .place.warn{color:var(--text);border-color:var(--warn-bg)}
+.place.danger i{background:var(--danger)} .place.danger{color:var(--text);border-color:var(--danger-bg)}
+.place.busy i{background:var(--faint);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.chip.on{border-color:var(--accent);background:var(--accent-bg);color:var(--text)}
+.chip{color:var(--dim)}
+.sw{position:relative;width:38px;height:22px;flex:none}
+.sw input{appearance:none;position:absolute;inset:0;margin:0;border-radius:22px;background:var(--line2);cursor:pointer;transition:.15s}
+.sw input:checked{background:var(--accent)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s;pointer-events:none}
+.sw:has(input:checked)::after{transform:translateX(16px)}
+.srow{display:flex;gap:14px;align-items:flex-start;padding:4px 22px 12px}
+.srow .t{flex:1}.srow .t b{display:block;font-weight:600}.srow .t span{color:var(--dim);font-size:13px}
+.shead{padding:14px 22px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint)}
+.mlist .wl{display:flex;gap:10px;align-items:center}.mlist .wl>div{flex:1;min-width:0}
+.mbody{overflow:auto}
+@media (max-width:900px){
+  .app{grid-template-columns:64px minmax(0,1fr)}
+  .brand span,.nav .lbl,.grp,.side-foot span,.side-foot a,.scanbtn span,.nav .pill{display:none}
+  .brand{justify-content:center;padding:16px 0}
+  .scanbtn{margin:2px 10px 10px;padding:10px}
+  .nav button{justify-content:center}
+  .tags .tag.cat{display:none}
+  .top,.strip,.tools,.verdict,.custom{padding-left:16px;padding-right:16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/><path d="m9 12 2 2 4-4"/></svg></div><span>Сканер системы</span></div>
+    <button class="scanbtn" id="scanBtn"><span id="scanIc" style="display:grid"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span><span id="scanLbl">Быстрый анализ</span><i class="bar" id="scanBar"></i></button>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot" id="foot"><i class="led"></i><span id="footTxt">…</span></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div class="ttl"><h1 id="vTitle">Обзор</h1><div class="desc" id="vDesc"></div></div>
+      <button class="iconbtn" id="menuBtn" title="Меню"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+      <div class="menu" id="menu">
+        <button data-m="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>Настройки</button>
+        <hr>
+        <button data-m="csv"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>Экспорт в CSV</button>
+        <button data-m="json"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>Экспорт в JSON</button>
+        <hr>
+        <button data-m="elev" id="mElev"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/></svg>Перезапустить от администратора</button>
+        <button data-m="quit"><svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>Завершить сканер</button>
+      </div>
+    </header>
+
+    <section class="strip" id="strip"></section>
+    <div class="verdict" id="verdict"></div>
+    <div class="places" id="places"></div>
+
+    <div class="custom" id="custom"><input id="cPath" placeholder="Путь к папке, например C:\Users\Public" spellcheck="false"><button class="btn primary" id="cGo">Показать</button></div>
+
+    <div class="tools">
+      <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Поиск по имени, пути, команде…" autocomplete="off" spellcheck="false"><kbd>/</kbd></label>
+      <select class="sel" id="fSig" title="Цифровая подпись">
+        <option value="">Любая подпись</option>
+        <option value="unsigned">Без подписи</option>
+        <option value="signed">Подписано</option>
+        <option value="system">Системные</option>
+        <option value="missing">Файл не найден</option>
+      </select>
+      <select class="sel" id="fSort" title="Сортировка">
+        <option value="risk">По риску</option>
+        <option value="name">По имени</option>
+        <option value="size">По размеру</option>
+        <option value="date">По дате</option>
+      </select>
+      <button class="btn chip" id="hsys" title="Скрыть записи Windows и Microsoft">Скрыть системные</button>
+      <button class="btn ghost" id="reset">Сбросить</button>
+    </div>
+
+    <div class="list" id="list"></div>
+
+    <div class="bulk" id="bulk"><span id="bulkN"></span><button class="btn ghost" id="bulkClr">Снять</button><button class="btn" id="bulkTrust">Доверять</button><button class="btn danger" id="bulkGo">Удалить</button></div>
+  </main>
+</div>
+
+<div class="shade" id="shade"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+'use strict';
+const TOKEN=document.querySelector('meta[name=tok]').content;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(p,o={}){
+  const r=await fetch(p,{...o,headers:{'X-Token':TOKEN,...(o.headers||{})}});
+  return r.json();
+}
+const ic={
+  reg:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  folder:'<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  gear:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>',
+  clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  cpu:'<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>',
+  file:'<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+  all:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+  user:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
+  net:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
+  shield:'<svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/></svg>',
+  star:'<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>',
+  boot:'<svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>',
+  gearset:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  warn:'<svg viewBox="0 0 24 24"><path d="M12 4 3 20h18z"/><path d="M12 10v4M12 17.5v.01"/></svg>',
+  ok:'<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>',
+  x:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  open:'<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  copy:'<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+  trash:'<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+};
+
+const CATS=[
+ {id:'run_user',g:'Автозапуск',n:'Run · пользователь',i:'reg',h:'Run (HKCU) — программы, запускающиеся при входе текущего пользователя. Самое частое место автозапуска вирусов.'},
+ {id:'run_sys',g:'Автозапуск',n:'Run · система',i:'reg',h:'Run (HKLM) — то же самое, но для всех пользователей системы. Запись требует прав администратора.'},
+ {id:'run_wow',g:'Автозапуск',n:'Run · 32-бит (WOW64)',i:'reg',h:'Run (HKLM, WOW6432Node) — автозапуск 32-битных программ для всех пользователей.'},
+ {id:'runonce_user',g:'Автозапуск',n:'RunOnce · пользователь',i:'reg',h:'RunOnce (HKCU) — программы, которые запустятся один раз и сами удалятся из списка. Используется и легитимным ПО, и вирусами.'},
+ {id:'runonce_sys',g:'Автозапуск',n:'RunOnce · система',i:'reg',h:'RunOnce (HKLM) — разовый автозапуск для всех пользователей.'},
+ {id:'policies_run',g:'Автозапуск',n:'Run · политики',i:'reg',h:'Policies\\Explorer\\Run — скрытое место автозапуска: сюда редко заглядывают, поэтому его любят вирусы.'},
+ {id:'winlogon',g:'Автозапуск',n:'Winlogon',i:'user',h:'Winlogon — ключи Userinit и Shell, которые Windows использует при входе. Подмена здесь — явный признак заражения. Показаны только значимые параметры.'},
+ {id:'startup_user',g:'Автозапуск',n:'Папка автозагрузки · я',i:'folder',h:'Ярлыки и программы, запускаемые Windows при входе именно этого пользователя. Для ярлыков показывается реальная цель.'},
+ {id:'startup_all',g:'Автозапуск',n:'Папка автозагрузки · все',i:'folder',h:'То же самое, но действует на любую учётную запись в системе.'},
+ {id:'tasks',g:'Автозапуск',n:'Планировщик заданий',i:'clock',h:'Задачи по расписанию, входу или простою. Частое место закрепления скрытых угроз. Показана команда запуска каждой задачи.'},
+ {id:'activesetup',g:'Автозапуск',n:'Active Setup',i:'reg',h:'Active Setup — команды (StubPath), которые Windows выполняет один раз для каждого нового пользователя. Редкий, но известный способ закрепления.'},
+ {id:'ifeo',g:'Автозапуск',n:'Перехват запуска (IFEO)',i:'warn',h:'Image File Execution Options — параметр Debugger заставляет Windows запускать другую программу вместо выбранной. Так вирусы подменяют диспетчер задач и антивирусы.'},
+ {id:'appinit',g:'Автозапуск',n:'AppInit_DLLs',i:'warn',h:'Библиотеки, которые Windows подгружает в каждое приложение. В нормальной системе список пуст.'},
+ {id:'services',g:'Система',n:'Службы',i:'gear',h:'Службы Windows — с путём к исполняемому файлу и типом запуска. Вирусы иногда маскируются под системные службы.'},
+ {id:'processes',g:'Система',n:'Процессы',i:'cpu',h:'Всё, что запущено прямо сейчас, с PID, родительским процессом и полным путём к файлу. Подмена системных имён подсвечивается.'},
+ {id:'network',g:'Система',n:'Сетевые соединения',i:'net',h:'Какие программы сейчас слушают порты или подключены к интернету. Неподписанная программа из Temp с активным соединением — повод присмотреться.'},
+ {id:'hosts',g:'Система',n:'Файл hosts',i:'file',h:'Файл hosts переопределяет адреса сайтов. Вирусы блокируют им сайты антивирусов и обновлений. В чистой системе записей почти нет.'},
+ {id:'defender',g:'Система',n:'Защитник Windows',i:'shield',h:'Данные Защитника Windows: состояние защиты, исключения и найденные угрозы. Раздел виден, пока включён доступ в настройках.',opt:'defender'},
+ {id:'files',g:'Файлы',n:'Исполняемые файлы',i:'file',h:'Глубокий поиск программ и скриптов (.exe, .dll, .bat, .vbs, .ps1…) в Temp, AppData, ProgramData, Загрузках, Рабочем столе и Public — там, где им обычно не место.'},
+ {id:'roaming',g:'Файлы',n:'AppData\\Roaming',i:'folder',h:'Папка, куда программы пишут без прав администратора. Частое место хранения вредоносных файлов.'},
+ {id:'temp',g:'Файлы',n:'Temp',i:'folder',h:'Временная папка. Сюда часто скачиваются и запускаются вирусы перед закреплением.'},
+ {id:'programdata',g:'Файлы',n:'ProgramData',i:'folder',h:'Общая папка данных для всех программ, тоже доступна на запись без администратора.'},
+ {id:'custom',g:'Файлы',n:'Своя папка…',i:'folder',h:'Введи любой путь и посмотри содержимое. Исполняемые файлы проверяются на подпись и расположение.'},
+];
+const CAT=Object.fromEntries(CATS.map(c=>[c.id,c]));
+const LV={danger:'Опасно',warn:'Подозрительно',note:'Внимание',ok:'Чисто'};
+const SIG={signed:['Подписано','good'],unsigned:['Без подписи','mid'],system:['Системный','good'],missing:['Файл не найден','mid'],invalid:['Подпись нарушена','bad'],unverified:['Не проверено','']};
+
+const AUTO=new Set(['run_user','run_sys','run_wow','runonce_user','runonce_sys','policies_run','winlogon','startup_user','startup_all','tasks','activesetup','ifeo','appinit']);
+const VIEWS={
+  all:{n:'Обзор',h:'Всё найденное во всех разделах, самое подозрительное — сверху. Нажми на элемент, чтобы увидеть подробности.'},
+  autostart:{n:'Автозагрузка',h:'Всё, что запускается само при входе в Windows: реестр, папки, планировщик и редкие места закрепления вирусов (IFEO, AppInit, Active Setup). Службы — в разделе «Система».'}
+};
+const HIDE_SYS=new Set(['autostart','tasks','services','processes','network']);
+const STATE={running:'работает',stopped:'остановлена',enabled:'включена',disabled:'отключена',listen:'слушает',estab:'подключено'};
+const S={items:new Map(),cats:{},view:'autostart',lv:{danger:1,warn:1,note:1,ok:1},sig:'',q:'',sort:'risk',hideSys:true,sel:new Set(),open:null,limit:150,running:0,total:0,done:0,t0:0,doneOnce:false,info:{admin:false},set:{whitelist:true,defender:false,entries:[]}};
+try{const sv=JSON.parse(localStorage.getItem('scn')||'{}');if(sv.sort)S.sort=sv.sort}catch(e){}
+const save=()=>{try{localStorage.setItem('scn',JSON.stringify({sort:S.sort}))}catch(e){}};
+
+/* ---------- сканирование ---------- */
+async function scanCat(id,path){
+  S.cats[id]={...(S.cats[id]||{}),busy:1};
+  try{
+    const r=await api('/api/scan?cat='+id+(path?'&path='+encodeURIComponent(path):''));
+    for(const [k,v] of S.items) if(v.cat===id){S.items.delete(k);S.sel.delete(k)}
+    if(r.ok){
+      for(const it of r.items){it._h=(it.name+' '+it.sub+' '+it.detail+' '+it.path).toLowerCase();S.items.set(it.id,it)}
+      S.cats[id]={ms:r.ms,n:r.items.length,trunc:r.truncated};
+    }else S.cats[id]={err:r.error};
+  }catch(e){S.cats[id]={err:'нет связи со сканером'}}
+  if(S.running)S.done++;
+  draw();
+}
+async function scanAll(){
+  if(S.running)return;
+  const ids=CATS.filter(c=>c.id!=='custom'&&(!c.opt||S.set[c.opt])).map(c=>c.id);
+  S.running=1;S.total=ids.length;S.done=0;S.t0=performance.now();
+  S.items.clear();S.sel.clear();S.cats={};closeDrawer();
+  ids.forEach(i=>S.cats[i]={busy:1});
+  draw();
+  const q=[...ids];
+  const worker=async()=>{while(q.length)await scanCat(q.shift())};
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  S.running=0;S.doneOnce=true;S.elapsed=((performance.now()-S.t0)/1000).toFixed(1);
+  draw();
+  const f=[...S.items.values()].filter(i=>i.level==='danger'||i.level==='warn').length;
+  toast(f?`Анализ завершён за ${S.elapsed} с · требуют внимания: ${f}`:`Анализ завершён за ${S.elapsed} с · подозрительного не найдено`);
+}
+
+/* ---------- данные ---------- */
+const inScope=i=>S.view==='all'||(S.view==='autostart'?AUTO.has(i.cat):i.cat===S.view);
+const scope=()=>{const a=[];for(const i of S.items.values())if(inScope(i))a.push(i);return a};
+function counts(a){const c={danger:0,warn:0,note:0,ok:0};for(const i of a)c[i.level]++;return c}
+function sigOk(i){
+  if(!S.sig)return true;
+  if(S.sig==='unsigned')return i.sig==='unsigned'||i.sig==='invalid';
+  return i.sig===S.sig;
+}
+function filtered(){
+  const q=S.q.trim().toLowerCase();
+  const a=scope().filter(i=>S.lv[i.level]&&sigOk(i)&&(!S.hideSys||i.sig!=='system')&&(!q||i._h.includes(q)));
+  const by={
+    risk:(x,y)=>y.risk-x.risk||x.name.localeCompare(y.name,'ru'),
+    name:(x,y)=>x.name.localeCompare(y.name,'ru'),
+    size:(x,y)=>y.size-x.size,
+    date:(x,y)=>(y.mtime||'').localeCompare(x.mtime||''),
+  }[S.sort];
+  return a.sort(by);
+}
+function fmtSize(n){if(n<0)return'';const u=['Б','КБ','МБ','ГБ'];let i=0;while(n>=1024&&i<3){n/=1024;i++}return (i?n.toFixed(n<10?1:0):n)+' '+u[i]}
+const ACT={quarantine:['В карантин','Файл будет перемещён в папку Quarantine рядом со сканером — его можно вернуть вручную.'],
+  regdel:['Удалить из автозапуска','Значение будет удалено из реестра без возможности восстановления. Сам файл останется на диске.'],
+  svcdel:['Удалить службу','Служба будет остановлена и удалена без возможности восстановления.'],
+  taskdel:['Удалить задачу','Задача будет удалена из планировщика без возможности восстановления.'],
+  kill:['Завершить процесс','Процесс будет немедленно завершён. Несохранённые данные в нём пропадут.']};
+
+/* ---------- отрисовка ---------- */
+function draw(){drawNav();drawHead();drawStrip();drawList();drawBulk();if(S.open)drawDrawer()}
+function drawNav(){
+  const flagged={},total={};
+  for(const i of S.items.values()){total[i.cat]=(total[i.cat]||0)+1;if(i.level==='danger'||i.level==='warn'){const f=flagged[i.cat]||(flagged[i.cat]={danger:0,warn:0});f[i.level]++}}
+  const all=counts([...S.items.values()]);
+  let h=btn('all','Обзор',ic.all,all.danger?['danger',all.danger]:all.warn?['warn',all.warn]:null,S.items.size);
+  const af={danger:0,warn:0};let an=0;
+  for(const i of S.items.values())if(AUTO.has(i.cat)){an++;if(i.level==='danger')af.danger++;else if(i.level==='warn')af.warn++}
+  h+=btn('autostart','Автозагрузка',ic.boot,af.danger?['danger',af.danger]:af.warn?['warn',af.warn]:null,S.doneOnce?an:null);
+  let g='';
+  for(const c of CATS){
+    if(c.opt&&!S.set[c.opt])continue;
+    if(c.g!==g){g=c.g;h+=`<div class="grp">${g}</div>`}
+    const f=flagged[c.id],st=S.cats[c.id];
+    let b=null;
+    if(st&&st.busy&&S.running)b=['spin',''];
+    else if(f)b=f.danger?['danger',f.danger]:['warn',f.warn];
+    h+=btn(c.id,c.n,ic[c.i],b,total[c.id]);
+  }
+  $('#nav').innerHTML=h;
+  function btn(id,n,icon,b,t){
+    let p;
+    if(b&&b[0]==='spin')p='<span class="pill spin"><span class="spinner"></span></span>';
+    else if(b)p=`<span class="pill ${b[0]}">${b[1]}</span>`;
+    else p=t!=null?`<span class="pill">${t}</span>`:'';
+    return `<button data-v="${id}" class="${S.view===id?'on':''}">${icon}<span class="lbl">${esc(n)}</span>${p}</button>`;
+  }
+}
+function drawHead(){
+  const c=CAT[S.view]||VIEWS[S.view];
+  $('#vTitle').textContent=c.n;
+  $('#vDesc').textContent=c.h;
+  $('#custom').classList.toggle('on',S.view==='custom');
+  $('#hsys').classList.toggle('on',S.hideSys);
+  $('#places').style.display=(S.view==='all'||S.view==='autostart')&&S.items.size?'flex':'none';
+  const sb=$('#scanBtn');
+  sb.disabled=!!S.running;
+  $('#scanLbl').textContent=S.running?`Анализ… ${S.done}/${S.total}`:(S.doneOnce?'Анализировать снова':'Быстрый анализ');
+  $('#scanIc').innerHTML=S.running?'<span class="spinner"></span>':'<svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>';
+  $('#scanBar').style.width=S.running?(S.done/S.total*100)+'%':'0';
+}
+function drawStrip(){
+  const c=counts(scope());
+  $('#strip').innerHTML=['danger','warn','note','ok'].map(k=>`<button class="stat ${k} ${S.lv[k]?'':'off'} ${c[k]?'':'zero'}" data-lv="${k}"><span class="n">${c[k]}</span><span class="t"><i></i>${LV[k]}</span></button>`).join('');
+  const all=c, here=S.view==='all'?'':' в этом разделе';
+  let v='';
+  if(S.running)v='<span class="spinner"></span> Идёт анализ, результаты появляются по мере готовности…';
+  else if(!S.doneOnce)v='';
+  else if(all.danger)v=`${ic.warn.replace('<svg','<svg style="color:var(--danger)"')}<span><b>Опасных элементов${here}: ${all.danger}.</b> Проверь их в первую очередь.</span>`;
+  else if(all.warn)v=`${ic.warn.replace('<svg','<svg style="color:var(--warn)"')}<span><b>Подозрительных элементов${here}: ${all.warn}.</b> Это не обязательно вирусы — посмотри, что именно и откуда запускается.</span>`;
+  else v=`${ic.ok.replace('<svg','<svg style="color:var(--ok)"')}<span><b>Явных угроз${here} не найдено.</b> Проверено элементов: ${all.danger+all.warn+all.note+all.ok}${S.view==='all'?` за ${S.elapsed} с`:''}.</span>`;
+  $('#verdict').innerHTML=v;
+  drawPlaces();
+}
+function drawPlaces(){
+  const f={},t={};
+  for(const i of S.items.values()){t[i.cat]=(t[i.cat]||0)+1;if(i.level==='danger')f[i.cat]='danger';else if(i.level==='warn'&&f[i.cat]!=='danger')f[i.cat]='warn'}
+  $('#places').innerHTML=CATS.filter(c=>c.id!=='custom'&&(!c.opt||S.set[c.opt])).map(c=>{
+    const st=S.cats[c.id];
+    const cls=st&&st.busy&&S.running?'busy':(f[c.id]||'clean');
+    return `<button class="place ${cls}" data-v="${c.id}" title="${esc(c.h)}"><i></i>${esc(c.n)}<b>${t[c.id]||0}</b></button>`;
+  }).join('');
+}
+function row(i){
+  const c=CAT[i.cat];
+  const sg=SIG[i.sig];
+  const can=!!i.action;
+  let sub='';
+  if(i.cat==='processes')sub='PID '+i.pid;
+  else if(i.sub)sub=i.sub;
+  let tags='';
+  if(S.view==='all')tags+=`<span class="tag cat">${esc(c.n)}</span>`;
+  if(i.wl)tags+=`<span class="tag good">Доверенный</span>`;
+  if(i.state)tags+=`<span class="tag ${i.state==='running'?'good':''}">${STATE[i.state]||esc(i.state)}</span>`;
+  if(i.start&&i.start!=='?'&&i.cat==='services')tags+=`<span class="tag">${esc(i.start)}</span>`;
+  if(sg&&i.sig!=='none')tags+=`<span class="tag ${sg[1]}">${sg[0]}</span>`;
+  if(i.size>=0&&(i.cat==='files'||['roaming','temp','programdata','custom'].includes(i.cat)))tags+=`<span class="tag">${fmtSize(i.size)}</span>`;
+  const p=i.cat==='processes'?(i.path||'путь недоступен'):i.detail;
+  return `<div class="row lv-${i.level} ${S.open===i.id?'act':''}" data-id="${i.id}">
+    <label class="chk ${can?'':'none'}"><input type="checkbox" ${S.sel.has(i.id)?'checked':''}></label>
+    <span class="dot"></span>
+    <div class="rmain"><div class="nm">${i.dir?'📁 ':''}${esc(i.name)}${sub?`<span class="sub">${esc(sub)}</span>`:''}</div><div class="pth" title="${esc(p)}">${esc(p)}</div></div>
+    <div class="tags">${tags}</div><div class="score">${i.risk||''}</div></div>`;
+}
+function drawList(){
+  const L=$('#list');
+  if(S.running&&!S.items.size){L.innerHTML='<div class="skel"></div>'.repeat(9);return}
+  if(S.view==='custom'&&!S.cats.custom&&!S.items.size){L.innerHTML=`<div class="empty"><h3>Выбери папку</h3><p>Введи путь выше и нажми «Показать».</p></div>`;return}
+  const st=S.cats[S.view];
+  if(st&&st.err){L.innerHTML=`<div class="empty"><h3>Не удалось прочитать</h3><p>${esc(st.err)}</p></div>`;return}
+  if(!S.items.size&&!S.doneOnce){L.innerHTML='';return}
+  const a=filtered(),shown=a.slice(0,S.limit);
+  if(!a.length){
+    const hidden=scope().length;
+    L.innerHTML=`<div class="empty"><div class="big">${ic.ok}</div><h3>${hidden?'Под фильтр ничего не попало':'Здесь пусто'}</h3><p>${hidden?`Скрыто элементов: ${hidden}. Измени фильтры или покажи всё.`:'В этом разделе ничего не найдено.'}</p>${hidden?'<button class="btn" id="showAll">Показать всё</button>':''}</div>`;
+    return;
+  }
+  let h=shown.map(row).join('');
+  if(a.length>shown.length)h+=`<button class="btn more" id="more">Показать ещё (${a.length-shown.length})</button>`;
+  if(st&&st.trunc)h+=`<div class="empty" style="padding:20px"><p>Список слишком большой и показан не полностью.</p></div>`;
+  L.innerHTML=h;
+}
+function drawBulk(){
+  const n=S.sel.size;
+  $('#bulk').classList.toggle('on',n>0);
+  if(!n)return;
+  const acts=new Set([...S.sel].map(id=>S.items.get(id)?.action));
+  $('#bulkN').textContent=`Выбрано: ${n}`;
+  $('#bulkTrust').style.display=S.set.whitelist?'':'none';
+  $('#bulkGo').innerHTML=ic.trash+(acts.size===1?ACT[[...acts][0]][0]:'Применить');
+}
+function kv(k,v,m){return v?`<dt>${k}</dt><dd class="${m?'m':''}">${esc(v)}</dd>`:''}
+function drawDrawer(){
+  const i=S.items.get(S.open);
+  if(!i){closeDrawer();return}
+  const sg=SIG[i.sig];
+  const why=i.reasons.length?`<ul class="why">${i.reasons.map(r=>`<li>${ic.warn}<span>${esc(r)}</span></li>`).join('')}</ul>`
+    :`<ul class="why clean"><li>${ic.ok}<span>Подозрительных признаков не найдено.</span></li></ul>`;
+  const act=i.action?ACT[i.action]:null;
+  $('#drawer').innerHTML=`
+   <div class="dh"><div style="flex:1;min-width:0"><h2>${esc(i.name)}</h2><span class="lvl ${i.level}">${LV[i.level]} · ${i.risk}/100</span></div><button class="iconbtn" id="dClose" title="Закрыть (Esc)">${ic.x}</button></div>
+   <div class="db"><div class="sect">Почему так</div>${why}
+   <div class="sect">Подробности</div><dl class="kv">
+    ${kv('Раздел',CAT[i.cat].n)}${kv('Описание',i.sub)}
+    ${kv(AUTO.has(i.cat)||i.cat==='services'?'Команда':'Место',i.detail,1)}
+    ${i.path&&i.path!==i.detail?kv('Файл',i.path,1):''}
+    ${sg&&i.sig!=='none'?kv('Подпись',sg[0]):''}
+    ${i.cat==='processes'?kv('PID',String(i.pid))+kv('Родитель',i.parent?`${i.parent} (${i.ppid})`:String(i.ppid)):''}
+    ${kv('Состояние',STATE[i.state]||'')}
+    ${i.cat==='services'?kv('Запуск',i.start):''}
+    ${i.size>=0?kv('Размер',fmtSize(i.size)):''}${kv('Изменён',i.mtime)}${i.hidden?kv('Атрибут','скрытый'):''}
+   </dl></div>
+   <div class="df">
+    ${(i.full||i.path)?`<button class="btn" id="dReveal">${ic.open}Показать в папке</button>`:''}
+    <button class="btn" id="dCopy">${ic.copy}Копировать путь</button>
+    ${S.set.whitelist&&i.cat!=='defender'?(i.wl?`<button class="btn" id="dUntrust">${ic.star}Убрать из белого списка</button>`:`<button class="btn" id="dTrust">${ic.star}Доверять</button>`):''}
+    ${S.set.defender&&(i.full||i.path)?`<button class="btn" id="dDef">${ic.shield}Проверить Защитником</button>`:''}
+    ${act?`<button class="btn ${i.level==='danger'||i.level==='warn'?'danger':''}" id="dAct">${ic.trash}${act[0]}</button>`:''}
+   </div>`;
+}
+function openDrawer(id){S.open=id;drawDrawer();$('#drawer').classList.add('on');$('#shade').classList.add('on');drawList()}
+function closeDrawer(){if(S.open==null&&!$('#drawer').classList.contains('on'))return;S.open=null;$('#drawer').classList.remove('on');$('#shade').classList.remove('on');drawList()}
+
+/* ---------- действия ---------- */
+function toast(t,bad){const d=document.createElement('div');d.className='toast'+(bad?' bad':'');d.textContent=t;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),bad?6000:4000)}
+function confirmRemove(ids){
+  const items=ids.map(id=>S.items.get(id)).filter(Boolean);
+  if(!items.length)return;
+  const kinds=[...new Set(items.map(i=>i.action))];
+  const note=kinds.map(k=>ACT[k][1]).join(' ');
+  const m=$('#mbox');
+  m.innerHTML=`<h3>${kinds.length===1?ACT[kinds[0]][0]:'Применить действие'}: ${items.length}</h3><p>${esc(note)}</p>
+   <div class="mlist">${items.slice(0,200).map(i=>`<div>${esc(i.name)}<small>${esc(i.path||i.detail)}</small></div>`).join('')}${items.length>200?`<div>…и ещё ${items.length-200}</div>`:''}</div>
+   <div class="mf"><button class="btn" id="mNo">Отмена</button><button class="btn danger" id="mYes">Подтвердить</button></div>`;
+  $('#modal').classList.add('on');
+  $('#mNo').onclick=()=>$('#modal').classList.remove('on');
+  $('#mYes').onclick=async()=>{
+    $('#mYes').disabled=true;
+    const r=await api('/api/remove',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'ids='+items.map(i=>i.id).join(',')});
+    const bad=[];let ok=0;
+    for(const x of r.results){
+      if(x.ok){ok++;S.items.delete(x.id);S.sel.delete(x.id);if(S.open===x.id)closeDrawer()}
+      else bad.push(x)
+    }
+    $('#modal').classList.remove('on');
+    draw();
+    if(ok)toast(`Готово: ${ok}`);
+    if(bad.length){
+      m.innerHTML=`<h3>Не удалось: ${bad.length}</h3><p>${ok?`Успешно: ${ok}. `:''}Для части действий нужны права администратора.</p>
+        <div class="mlist">${bad.map(x=>`<div>${esc(S.items.get(x.id)?.name||x.id)}<small class="err">${esc(x.error)}</small></div>`).join('')}</div>
+        <div class="mf"><button class="btn primary" id="mOk">Понятно</button></div>`;
+      $('#modal').classList.add('on');$('#mOk').onclick=()=>$('#modal').classList.remove('on');
+    }
+  };
+}
+function download(name,type,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+function exportData(kind){
+  const a=filtered();
+  if(!a.length){toast('Нечего экспортировать',1);return}
+  const stamp=new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  if(kind==='json')download(`scan-${stamp}.json`,'application/json',JSON.stringify(a.map(({_h,...r})=>r),null,2));
+  else{
+    const cols=['level','risk','cat','name','sub','detail','path','sig','state','size','mtime','reasons'];
+    const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    download(`scan-${stamp}.csv`,'text/csv',cols.join(',')+'\r\n'+a.map(r=>cols.map(c=>q(c==='reasons'?r.reasons.join('; '):r[c])).join(',')).join('\r\n'));
+  }
+}
+
+/* ---------- события ---------- */
+$('#nav').onclick=e=>{
+  const b=e.target.closest('button[data-v]');if(!b)return;
+  go(b.dataset.v);
+};
+function go(v){
+  S.view=v;S.limit=150;S.lv.ok=v!=='all';S.hideSys=HIDE_SYS.has(v);closeDrawer();draw();
+  $('#list').scrollTop=0;
+  if(v==='custom')$('#cPath').focus();
+}
+$('#places').onclick=e=>{const b=e.target.closest('[data-v]');if(b)go(b.dataset.v)};
+$('#hsys').onclick=()=>{S.hideSys=!S.hideSys;S.limit=150;draw()};
+$('#strip').onclick=e=>{const b=e.target.closest('[data-lv]');if(!b)return;S.lv[b.dataset.lv]^=1;S.limit=150;draw()};
+$('#scanBtn').onclick=scanAll;
+$('#q').oninput=e=>{S.q=e.target.value;S.limit=150;drawList()};
+$('#fSig').onchange=e=>{S.sig=e.target.value;S.limit=150;drawList()};
+$('#fSort').onchange=e=>{S.sort=e.target.value;save();drawList()};
+$('#reset').onclick=()=>{S.q='';S.sig='';$('#q').value='';$('#fSig').value='';S.lv={danger:1,warn:1,note:1,ok:S.view!=='all'?1:0};S.hideSys=HIDE_SYS.has(S.view);S.limit=150;draw()};
+$('#cGo').onclick=()=>{const p=$('#cPath').value.trim();if(p)scanCat('custom',p)};
+$('#cPath').onkeydown=e=>{if(e.key==='Enter')$('#cGo').click()};
+$('#list').onclick=e=>{
+  if(e.target.id==='more'){S.limit+=300;drawList();return}
+  if(e.target.id==='showAll'){$('#reset').click();S.lv.ok=1;draw();return}
+  const r=e.target.closest('.row');if(!r)return;
+  const id=+r.dataset.id;
+  if(e.target.closest('.chk')){
+    const inp=r.querySelector('input');
+    if(e.target.tagName==='INPUT'){inp.checked?S.sel.add(id):S.sel.delete(id);drawBulk()}
+    return;
+  }
+  openDrawer(id);
+};
+$('#shade').onclick=closeDrawer;
+$('#drawer').onclick=async e=>{
+  const i=S.items.get(S.open);if(!i)return;
+  if(e.target.closest('#dClose'))closeDrawer();
+  else if(e.target.closest('#dCopy')){try{await navigator.clipboard.writeText(i.full||i.path||i.detail);toast('Путь скопирован')}catch(_){toast('Не удалось скопировать',1)}}
+  else if(e.target.closest('#dReveal')){const r=await api('/api/reveal?id='+i.id,{method:'POST'});if(!r.ok)toast(r.error,1)}
+  else if(e.target.closest('#dAct'))confirmRemove([i.id]);
+  else if(e.target.closest('#dTrust'))trust([i.id],true);
+  else if(e.target.closest('#dUntrust'))trust([i.id],false);
+  else if(e.target.closest('#dDef')){
+    const b=e.target.closest('#dDef');b.disabled=true;b.textContent='Проверяю…';
+    const r=await api('/api/defscan?id='+i.id,{method:'POST'}).catch(()=>({ok:false,error:'нет связи'}));
+    if(S.open===i.id)drawDrawer();
+    if(!r.ok)toast(r.error,1);
+    else if(r.result==='clean')toast('Защитник Windows: угроз не найдено');
+    else if(r.result==='threat')toast('Защитник Windows обнаружил угрозу в этом файле!',1);
+    else toast('Защитник не смог завершить проверку (код '+r.code+')',1);
+  }
+};
+function applyItems(list){
+  for(const it of list){it._h=(it.name+' '+it.sub+' '+it.detail+' '+it.path).toLowerCase();S.items.set(it.id,it)}
+  draw();
+}
+async function trust(ids,add){
+  const r=await api(add?'/api/trust':'/api/untrust',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'ids='+ids.join(',')});
+  applyItems(r.items||[]);
+  S.sel.clear();drawBulk();
+  toast(add?'Добавлено в белый список':'Убрано из белого списка');
+}
+$('#bulkTrust').onclick=()=>trust([...S.sel],true);
+$('#bulkClr').onclick=()=>{S.sel.clear();drawList();drawBulk()};
+$('#bulkGo').onclick=()=>confirmRemove([...S.sel]);
+$('#menuBtn').onclick=e=>{e.stopPropagation();$('#menu').classList.toggle('open')};
+document.addEventListener('click',e=>{if(!e.target.closest('#menu'))$('#menu').classList.remove('open')});
+$('#menu').onclick=async e=>{
+  const b=e.target.closest('[data-m]');if(!b)return;
+  $('#menu').classList.remove('open');
+  const m=b.dataset.m;
+  if(m==='csv'||m==='json')exportData(m);
+  else if(m==='settings')openSettings();
+  else if(m==='elev')elevate();
+  else if(m==='quit'){await api('/api/shutdown',{method:'POST'}).catch(()=>{});document.body.innerHTML='<div class="empty" style="height:100vh"><h3>Сканер остановлен</h3><p>Можно закрыть эту вкладку. Чтобы запустить снова — открой SySscaner.exe.</p></div>'}
+};
+/* ---------- настройки ---------- */
+let setDirty=false;
+async function openSettings(){
+  try{S.set=await api('/api/settings')}catch(e){}
+  renderSettings();
+  $('#modal').classList.add('on');
+}
+function renderSettings(){
+  const s=S.set;
+  $('#mbox').innerHTML=`<h3>Настройки</h3><div class="mbody">
+   <div class="shead">Белый список</div>
+   <div class="srow"><label class="sw"><input type="checkbox" id="sWl" ${s.whitelist?'checked':''}></label><div class="t"><b>Использовать белый список</b><span>Элементы, помеченные «Доверять», показываются как чистые и не попадают в подозрения. Для файлов запоминается и контрольная сумма: если файл изменится — доверие снимется.</span></div></div>
+   ${s.entries.length?`<div class="mlist">${s.entries.map(e=>`<div class="wl"><div>${esc(e.name)}<small>${esc(e.path||e.key.slice(2))}</small></div><button class="btn ghost" data-untrust="${esc(e.key)}">Убрать</button></div>`).join('')}</div>`:'<p>Список пуст. Открой любой элемент и нажми «Доверять».</p>'}
+   <div class="shead">Windows Defender</div>
+   <div class="srow"><label class="sw"><input type="checkbox" id="sDef" ${s.defender?'checked':''}></label><div class="t"><b>Доступ к Защитнику Windows</b><span>Включает раздел «Защитник Windows» (состояние защиты, исключения, найденные угрозы) и кнопку «Проверить Защитником» у файлов. Для этого сканер запускает системные PowerShell и MpCmdRun — только на чтение и проверку, ничего не удаляется и не меняется.</span></div></div>
+  </div><div class="mf"><button class="btn primary" id="sOk">Готово</button></div>`;
+  $('#sWl').onchange=e=>saveSet({whitelist:e.target.checked?1:0});
+  $('#sDef').onchange=e=>saveSet({defender:e.target.checked?1:0});
+  $('#sOk').onclick=closeSettings;
+  $('#mbox').querySelectorAll('[data-untrust]').forEach(b=>b.onclick=async()=>{
+    const r=await api('/api/untrust',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key='+encodeURIComponent(b.dataset.untrust)});
+    applyItems(r.items||[]);
+    S.set=await api('/api/settings');setDirty=false;renderSettings();
+  });
+}
+async function saveSet(o){
+  S.set=await api('/api/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:Object.entries(o).map(([k,v])=>k+'='+v).join('&')});
+  setDirty=true;renderSettings();draw();
+}
+function closeSettings(){
+  $('#modal').classList.remove('on');
+  if(setDirty){setDirty=false;if(!S.set.defender&&CAT[S.view]?.opt)S.view='all';scanAll()}
+}
+async function elevate(){
+  if(S.info.admin){toast('Уже запущено от администратора');return}
+  const r=await api('/api/elevate',{method:'POST'}).catch(()=>({ok:true}));
+  if(!r.ok){toast(r.error,1);return}
+  toast('Подтверди запрос Windows (UAC) — страница обновится сама');
+  const t=setInterval(async()=>{try{const p=await (await fetch('/api/ping')).json();if(p.admin){clearInterval(t);location.reload()}}catch(_){}},1200);
+}
+$('#foot').onclick=e=>{if(e.target.tagName==='A')elevate()};
+function mod(e){return e.ctrlKey||e.metaKey||e.altKey}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if($('#modal').classList.contains('on'))closeSettings();else closeDrawer();return}
+  if(e.key==='/'&&!mod(e)&&document.activeElement.tagName!=='INPUT'){e.preventDefault();$('#q').focus()}
+});
+
+/* ---------- старт ---------- */
+(async()=>{
+  $('#fSort').value=S.sort;
+  draw();
+  try{
+    S.info=await api('/api/info');
+    const f=$('#foot');f.classList.toggle('lim',!S.info.admin);
+    f.innerHTML=S.info.admin?'<i class="led"></i><span>Права администратора</span>':'<i class="led"></i><span>Ограниченные права</span><a>Повысить</a>';
+    $('#mElev').style.display=S.info.admin?'none':'';
+  }catch(e){}
+  try{S.set=await api('/api/settings')}catch(e){}
+  scanAll();
+})();
+</script>
+</body>
+</html>

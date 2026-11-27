@@ -1,0 +1,10 @@
+# сборка
+*.exe
+*.o
+ui_html.h
+# отчёты сканирования содержат имя пользователя, SID и пути — не публиковать
+output_*.txt
+# локальные данные сканера
+Quarantine/
+settings.json
+whitelist.txt
