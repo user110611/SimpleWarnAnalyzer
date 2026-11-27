@@ -110,6 +110,7 @@ struct WItem {
     string action;               // quarantine | regdel | svcdel | taskdel | kill | ""
     Item del;
     bool wl = false;             // в белом списке
+    bool ack = false;            // отмечено прочитанным
 };
 
 static std::mutex g_storeMx;
@@ -327,7 +328,24 @@ static void saveWl() {
     for (auto& e : g_wl) o += e.key + "\t" + e.hash + "\t" + e.date + "\t" + u8(e.name) + "\n";
     writeFileStr(g_exeDir + L"\\whitelist.txt", o);
 }
+static map<string, string> g_ack;   // ключ элемента -> дата, когда отмечен прочитанным
+static void saveAcks() {
+    string o;
+    for (auto& e : g_ack) o += e.first + "\t" + e.second + "\n";
+    writeFileStr(g_exeDir + L"\\acks.txt", o);
+}
 static void loadCfg() {
+    {
+        string a = readFileStr(g_exeDir + L"\\acks.txt");
+        size_t p = 0;
+        while (p < a.size()) {
+            size_t e = a.find('\n', p);
+            string line = a.substr(p, e == string::npos ? string::npos : e - p);
+            p = e == string::npos ? a.size() : e + 1;
+            size_t t = line.find('\t');
+            if (!line.empty()) g_ack[t == string::npos ? line : line.substr(0, t)] = t == string::npos ? "" : line.substr(t + 1);
+        }
+    }
     string s = readFileStr(g_exeDir + L"\\settings.json");
     if (!s.empty()) {
         g_wlOn = s.find("\"whitelist\":false") == string::npos;
@@ -402,6 +420,12 @@ static void applyWhitelist(vector<WItem>& v) {
         }
         it.wl = true;
     }
+}
+
+static void applyAck(vector<WItem>& v) {
+    std::lock_guard<std::mutex> lk(g_cfgMx);
+    if (g_ack.empty()) return;
+    for (auto& it : v) if (g_ack.count(wlKey(it))) it.ack = true;
 }
 
 static const char* levelOf(int r) { return r >= 70 ? "danger" : r >= 35 ? "warn" : r >= 15 ? "note" : "ok"; }
@@ -578,6 +602,7 @@ static void finishCat(vector<WItem>& v, const string& cat) {
     sigBatch(need);
     for (auto& it : v) analyzeItem(it);
     applyWhitelist(v);
+    applyAck(v);
 }
 
 // ============================================================ сборщики
@@ -1141,6 +1166,7 @@ static string itemJson(const WItem& it) {
     kv("risk", std::to_string(risk));
     kv("level", string("\"") + levelOf(risk) + "\"");
     kv("wl", wl ? "true" : "false");
+    kv("ack", it.ack ? "true" : "false");
     kv("action", "\"" + it.action + "\"");
     o += "\"reasons\":[";
     if (wl) o += "\"В белом списке — ты отметил этот элемент как доверенный\"";
@@ -1383,6 +1409,39 @@ static string defChangeJson(const string& kind, const string& op, const wstring&
     return err(msg);
 }
 
+// отметить элементы прочитанными / вернуть в непрочитанные; возвращает обновлённые элементы
+static string ackJson(const string& idsCsv, bool on) {
+    set<string> keys;
+    string res = "{\"items\":[";
+    {
+        std::lock_guard<std::mutex> lk(g_storeMx);
+        size_t pos = 0;
+        while (pos <= idsCsv.size() && !idsCsv.empty()) {
+            size_t c = idsCsv.find(',', pos);
+            string tok = idsCsv.substr(pos, c == string::npos ? string::npos : c - pos);
+            pos = c == string::npos ? idsCsv.size() + 1 : c + 1;
+            auto f = g_store.find(atol(tok.c_str()));
+            if (f != g_store.end()) keys.insert(wlKey(f->second));
+        }
+        {
+            std::lock_guard<std::mutex> lc(g_cfgMx);
+            SYSTEMTIME t; GetLocalTime(&t);
+            char d[32]; snprintf(d, 32, "%04d-%02d-%02d", t.wYear, t.wMonth, t.wDay);
+            for (auto& k : keys) { if (on) g_ack[k] = d; else g_ack.erase(k); }
+            saveAcks();
+        }
+        bool first = true;
+        for (auto& kv : g_store) {
+            if (!keys.count(wlKey(kv.second))) continue;
+            kv.second.ack = on;
+            if (!first) res += ",";
+            first = false;
+            res += itemJson(kv.second);
+        }
+    }
+    return res + "]}";
+}
+
 static wstring findMpCmd() {
     wstring base = expand(L"%ProgramData%\\Microsoft\\Windows Defender\\Platform"), best;
     WIN32_FIND_DATAW fd;
@@ -1580,6 +1639,9 @@ static void handleClient(SOCKET s) {
         } else if (path == "/api/untrust" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, trustJson(b["ids"], false, b["key"]));
+        } else if (path == "/api/ack" && method == "POST") {
+            auto b = parseQuery(body);
+            reply(s, 200, JSON, ackJson(b["ids"], b["on"] != "0"));
         } else if (path == "/api/defender/prefs" && method == "GET") {
             reply(s, 200, JSON, defPrefsJson());
         } else if (path == "/api/defender/change" && method == "POST") {

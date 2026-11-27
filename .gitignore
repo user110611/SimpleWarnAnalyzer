@@ -8,3 +8,4 @@ output_*.txt
 Quarantine/
 settings.json
 whitelist.txt
+acks.txt
