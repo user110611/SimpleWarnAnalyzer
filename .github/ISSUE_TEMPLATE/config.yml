@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation / Документация / Documentazione
+    url: https://github.com/user110611/SimpleWarnAnalyzer#readme
+    about: Read how to run, build and use the scanner before opening an issue.
+  - name: 🔒 Security issue / Уязвимость
+    url: https://github.com/user110611/SimpleWarnAnalyzer/security/advisories/new
+    about: Report a vulnerability privately. Please do not open a public issue.

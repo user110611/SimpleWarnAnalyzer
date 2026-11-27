@@ -1,0 +1,62 @@
+name: 🎯 False positive / missed threat / Ложное срабатывание или пропуск
+description: The scanner flagged a safe item, or missed a dangerous one / Сканер ошибся в оценке
+title: "[Detection]: "
+labels: ["detection", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The scanner is heuristic, so mistakes happen — your report helps to tune the rules. / Сканер эвристический, ошибки возможны — ваш отчёт помогает улучшить правила.
+        **Never upload real malware here.** Describe the item or share a hash. / **Не загружайте сюда настоящие вирусы** — опишите объект или укажите хеш.
+        **Privacy:** hide your user name in paths. / Скройте имя пользователя в путях.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type / Тип
+      options:
+        - False positive — a safe item is flagged / Ложное срабатывание
+        - Missed threat — something dangerous is not flagged / Пропущена угроза
+        - Wrong explanation or advice / Неверное объяснение или совет
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Item name / Название элемента
+      placeholder: "OneDriveSync, photoshop_patch.exe"
+    validations:
+      required: true
+  - type: dropdown
+    id: section
+    attributes:
+      label: Section / Раздел
+      options:
+        - Autostart (Run, Winlogon, Startup) / Автозагрузка
+        - Scheduled tasks / Планировщик
+        - Services / Службы
+        - Processes / Процессы
+        - Network / Сеть
+        - Hosts file / Файл hosts
+        - Files and folders / Файлы и папки
+        - Windows Defender
+    validations:
+      required: true
+  - type: input
+    id: risk
+    attributes:
+      label: Shown risk score and level / Показанная оценка риска
+      placeholder: "62 — Suspicious"
+  - type: textarea
+    id: why
+    attributes:
+      label: Why do you think it is wrong? / Почему вы считаете, что это ошибка?
+      description: Publisher, signature, where the file came from, SHA-256 hash, etc. / Издатель, подпись, источник файла, хеш SHA-256 и т. п.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / Версия
+      placeholder: v1.0.0
+    validations:
+      required: true

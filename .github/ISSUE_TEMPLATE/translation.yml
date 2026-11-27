@@ -1,0 +1,35 @@
+name: 🌍 Translation / Перевод
+description: Fix a translation or propose a new language / Исправить перевод или добавить язык
+title: "[i18n]: "
+labels: ["translation", "good first issue"]
+body:
+  - type: dropdown
+    id: lang
+    attributes:
+      label: Language / Язык
+      options:
+        - Русский
+        - English
+        - Italiano
+        - New language / Новый язык
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where is the problem? / Где проблема?
+      description: Screen or text that is wrong, with a screenshot if possible. / Экран или текст с ошибкой, по возможности скриншот.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested text / Предлагаемый текст
+    validations:
+      required: true
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution / Участие
+      options:
+        - label: I can open a pull request myself / Могу сам(а) отправить pull request

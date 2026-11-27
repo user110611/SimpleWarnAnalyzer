@@ -1,0 +1,18 @@
+name: ❓ Question / Вопрос
+description: Ask how something works / Спросить, как что-то работает
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: Please check the README first. / Сначала загляните в README.
+  - type: textarea
+    id: q
+    attributes:
+      label: Your question / Ваш вопрос
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried? / Что вы уже пробовали?

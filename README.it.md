@@ -1,10 +1,16 @@
-# SimpleWarnAnalyzer
+<div align="center">
 
-[![Stars](https://img.shields.io/github/stars/user110611/SimpleWarnAnalyzer?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/stargazers) [![Forks](https://img.shields.io/github/forks/user110611/SimpleWarnAnalyzer?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/forks) [![Issues](https://img.shields.io/github/issues/user110611/SimpleWarnAnalyzer?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/issues) [![Downloads](https://img.shields.io/github/downloads/user110611/SimpleWarnAnalyzer/total?style=flat-square)](https://github.com/user110611/SimpleWarnAnalyzer/releases)
+# 🛡️ SimpleWarnAnalyzer
+
+**Aiuta ad analizzare le aree più vulnerabili del computer.**
+
+<a href="https://github.com/user110611/SimpleWarnAnalyzer/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/user110611/SimpleWarnAnalyzer?style=for-the-badge&logo=github&labelColor=0d1117&color=f5c542"></a> <a href="https://github.com/user110611/SimpleWarnAnalyzer/forks"><img alt="Forks" src="https://img.shields.io/github/forks/user110611/SimpleWarnAnalyzer?style=for-the-badge&logo=github&labelColor=0d1117&color=58a6ff"></a> <a href="https://github.com/user110611/SimpleWarnAnalyzer/issues"><img alt="Issues" src="https://img.shields.io/github/issues/user110611/SimpleWarnAnalyzer?style=for-the-badge&logo=github&labelColor=0d1117&color=f85149"></a> <a href="https://github.com/user110611/SimpleWarnAnalyzer/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/user110611/SimpleWarnAnalyzer/total?style=for-the-badge&logo=github&labelColor=0d1117&color=3fb950"></a>
+
+<a href="https://github.com/user110611/SimpleWarnAnalyzer/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/user110611/SimpleWarnAnalyzer?style=flat-square&labelColor=0d1117&color=8957e5"></a> <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square&labelColor=0d1117&logo=windows"> <img alt="Open source" src="https://img.shields.io/badge/open%20source-100%25-3fb950?style=flat-square&labelColor=0d1117"> <img alt="Languages" src="https://img.shields.io/badge/lang-RU%20%7C%20EN%20%7C%20IT-f0883e?style=flat-square&labelColor=0d1117">
 
 [English](README.md) · [Русский](README.ru.md) · **Italiano**
 
-Aiuta ad analizzare le aree più vulnerabili del computer.
+</div>
 
 Uno scanner per Windows in un solo file (senza installazione, senza cloud, senza telemetria). In pochi secondi raccoglie tutti i punti in cui i malware amano nascondersi e ti dice **in parole semplici cosa fare**.
 

@@ -1,0 +1,85 @@
+name: 🐞 Bug report / Сообщить об ошибке
+description: Something does not work as expected / Что-то работает не так
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping to improve SimpleWarnAnalyzer! / Спасибо, что помогаете улучшить программу!
+        **Privacy:** before pasting paths, logs or screenshots, replace your user name and other personal data (e.g. `C:\Users\<user>\...`).
+        **Приватность:** перед вставкой путей, логов и скриншотов замените имя пользователя и личные данные.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start / Перед отправкой
+      options:
+        - label: I searched existing issues and did not find a duplicate / Я поискал(а) среди задач, дубликата нет
+          required: true
+        - label: I use the latest release / У меня последний релиз
+          required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Что произошло?
+      description: Describe the problem and what you expected instead. / Опишите проблему и ожидаемое поведение.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Шаги воспроизведения
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See error ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / Раздел
+      options:
+        - Home page / Главная
+        - Scan results / Результаты сканирования
+        - Quarantine / Карантин
+        - Journal & Undo / Журнал и отмена
+        - Hosts editor / Редактор hosts
+        - Windows Defender
+        - Archive & whitelist / Архив и белый список
+        - Language (RU/EN/IT) / Язык
+        - Build / Сборка
+        - Other / Другое
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / Версия
+      description: Release tag or commit (e.g. v1.0.0). / Тег релиза или коммит.
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: admin
+    attributes:
+      label: Started as administrator? / Запущено от администратора?
+      options:
+        - "Yes / Да"
+        - "No / Нет"
+        - "Not sure / Не знаю"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Windows version / Версия Windows
+      placeholder: Windows 11 23H2
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots / Логи и скриншоты
+      description: Drag files here. Remember to hide personal data. / Перетащите файлы сюда, скройте личные данные.
+      render: shell

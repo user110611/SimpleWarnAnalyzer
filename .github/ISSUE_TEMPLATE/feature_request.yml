@@ -1,0 +1,43 @@
+name: ✨ Feature request / Предложить идею
+description: Suggest an improvement / Предложите улучшение
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Проблема
+      description: What is hard or missing today? / Что сейчас неудобно или отсутствует?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution / Предлагаемое решение
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / Альтернативы
+      description: Other ways to solve it that you considered. / Другие варианты, которые вы рассматривали.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area / Раздел
+      options:
+        - Home page / Главная
+        - Detection / Обнаружение
+        - Quarantine / Карантин
+        - Hosts editor / Редактор hosts
+        - Windows Defender
+        - UI / Интерфейс
+        - Other / Другое
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution / Участие
+      options:
+        - label: I can help to implement it / Я могу помочь с реализацией
