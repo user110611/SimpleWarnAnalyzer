@@ -23,7 +23,8 @@ A single-file Windows scanner (no installer, no cloud, no telemetry) that collec
 - **Windows Defender built in (optional).** See Defender threats and status, mark them as read, scan a file, and manage exclusions and protected folders.
 - **Editable hosts file.** Add, edit or remove entries safely, with automatic backups.
 - **What changed since last time.** New and disappeared startup items between scans, "first seen" timestamps.
-- **Private by design.** Runs a tiny web UI on `127.0.0.1` only, protected by a per-run token. Nothing leaves your PC.
+- **Private by design.** Runs a tiny web UI on `127.0.0.1` only, protected by a per-run token. Your data never leaves your PC; the only internet request is an optional update check against GitHub (can be turned off in Settings).
+- **Update notice.** A green banner at the top appears when a newer release is published, with buttons for GitHub, direct download, "don't show again" and close.
 - **Three languages.** Russian, English and Italian, switchable in the header (English by default).
 
 > It is a heuristic helper, not a replacement for a full antivirus. Treat "Suspicious" as "worth a look", not as a verdict.

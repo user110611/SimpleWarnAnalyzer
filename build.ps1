@@ -17,7 +17,7 @@ if (Test-Path $out) {
 windres app.rc -O coff -o app.res.o
 if ($LASTEXITCODE -ne 0) { throw 'windres failed' }
 g++ -std=c++17 -O2 -Wall -Wno-unused-function -finput-charset=UTF-8 -fexec-charset=UTF-8 scan.cpp app.res.o -o $out `
-    -static -pthread -lws2_32 -lwintrust -lcrypt32 -ladvapi32 -lshell32 -lole32 -luuid -lbcrypt -liphlpapi
+    -static -pthread -lws2_32 -lwintrust -lcrypt32 -ladvapi32 -lshell32 -lole32 -luuid -lbcrypt -liphlpapi -lwinhttp
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
 Remove-Item app.res.o -Force
 Write-Host "Done: $out"

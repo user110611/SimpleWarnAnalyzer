@@ -18,6 +18,7 @@
 #include <shlobj.h>
 #include <bcrypt.h>
 #include <iphlpapi.h>
+#include <winhttp.h>
 
 #ifndef WTD_CACHE_ONLY_URL_RETRIEVAL
 #define WTD_CACHE_ONLY_URL_RETRIEVAL 0x00001000
@@ -313,7 +314,8 @@ static wstring dataFile(const wchar_t* name) {
         CopyFileW(old.c_str(), p.c_str(), TRUE);
     return p;
 }
-static bool g_wlOn = true, g_defOn = false;
+static bool g_wlOn = true, g_defOn = false, g_updOff = false;
+static const char* APP_VERSION = "1.1.0";
 struct WlEntry { string key, hash, date; wstring name; };
 static vector<WlEntry> g_wl;
 
@@ -333,7 +335,8 @@ static void writeFileStr(const wstring& p, const string& s) {
 }
 static void saveSettings() {
     writeFileStr(dataFile(L"settings.json"), string("{\"whitelist\":") + (g_wlOn ? "true" : "false") +
-                                                    ",\"defender\":" + (g_defOn ? "true" : "false") + "}\n");
+                                                    ",\"defender\":" + (g_defOn ? "true" : "false") +
+                                                    ",\"updates\":" + (g_updOff ? "false" : "true") + "}\n");
 }
 static void saveWl() {
     string o;
@@ -470,6 +473,7 @@ static void loadCfg() {
     if (!s.empty()) {
         g_wlOn = s.find("\"whitelist\":false") == string::npos;
         g_defOn = s.find("\"defender\":true") != string::npos;
+        g_updOff = s.find("\"updates\":false") != string::npos;
     }
     string w = readFileStr(dataFile(L"whitelist.txt"));
     size_t pos = 0;
@@ -1499,10 +1503,99 @@ static string revealJson(long id) {
     return "{\"ok\":true}";
 }
 
+// ============================================================ проверка обновлений (GitHub Releases)
+// Единственный исходящий запрос приложения: GET https://api.github.com/repos/<repo>/releases/latest.
+// Ничего о пользователе не передаётся. Отключается в настройках (поле "updates": false в settings.json).
+static const char* UPD_REPO = "user110611/SimpleWarnAnalyzer";
+static string httpsGet(const wchar_t* host, const wstring& path) {
+    string out;
+    HINTERNET ses = WinHttpOpen(L"SimpleWarnAnalyzer", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!ses) return out;
+    WinHttpSetTimeouts(ses, 5000, 5000, 8000, 8000);
+    HINTERNET con = WinHttpConnect(ses, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    HINTERNET req = con ? WinHttpOpenRequest(con, L"GET", path.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE) : NULL;
+    if (req && WinHttpSendRequest(req, L"Accept: application/vnd.github+json\r\n", (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) && WinHttpReceiveResponse(req, NULL)) {
+        DWORD code = 0, sz = sizeof(code);
+        WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz, WINHTTP_NO_HEADER_INDEX);
+        if (code == 200) {
+            for (;;) {
+                DWORD n = 0;
+                if (!WinHttpQueryDataAvailable(req, &n) || !n) break;
+                string b(n, '\0'); DWORD r = 0;
+                if (!WinHttpReadData(req, &b[0], n, &r) || !r) break;
+                out.append(b, 0, r);
+                if (out.size() > 2000000) break;
+            }
+        }
+    }
+    if (req) WinHttpCloseHandle(req);
+    if (con) WinHttpCloseHandle(con);
+    WinHttpCloseHandle(ses);
+    return out;
+}
+static string jsonStrAt(const string& j, size_t p) {   // p — позиция сразу после открывающей кавычки
+    string v;
+    for (; p < j.size() && j[p] != '"'; p++) { if (j[p] == '\\' && p + 1 < j.size()) p++; v += j[p]; }
+    return v;
+}
+static string jsonField(const string& j, const string& key) {
+    string k = "\"" + key + "\":\"";
+    size_t p = j.find(k);
+    return p == string::npos ? "" : jsonStrAt(j, p + k.size());
+}
+static vector<int> parseVer(string v) {
+    if (!v.empty() && (v[0] == 'v' || v[0] == 'V')) v = v.substr(1);
+    vector<int> r; int cur = 0; bool any = false;
+    for (char c : v) {
+        if (c >= '0' && c <= '9') { cur = cur * 10 + (c - '0'); any = true; }
+        else if (c == '.') { r.push_back(cur); cur = 0; any = false; }
+        else break;
+    }
+    if (any) r.push_back(cur);
+    return r;
+}
+static bool verNewer(const string& a, const string& b) {   // a новее b
+    auto x = parseVer(a), y = parseVer(b);
+    if (x.empty()) return false;
+    size_t n = std::max(x.size(), y.size());
+    for (size_t i = 0; i < n; i++) {
+        int p = i < x.size() ? x[i] : 0, q = i < y.size() ? y[i] : 0;
+        if (p != q) return p > q;
+    }
+    return false;
+}
+static string updateJson() {
+    if (g_updOff) return "{\"enabled\":false}";
+    static std::mutex mx; static string cache; static std::chrono::steady_clock::time_point at; static bool okCache = false;
+    std::lock_guard<std::mutex> lk(mx);
+    auto now = std::chrono::steady_clock::now();
+    auto ttl = okCache ? std::chrono::hours(6) : std::chrono::minutes(10);
+    if (!cache.empty() && now - at < ttl) return cache;
+    string j = httpsGet(L"api.github.com", wstring(L"/repos/") + wstring(UPD_REPO, UPD_REPO + strlen(UPD_REPO)) + L"/releases/latest");
+    string tag = jsonField(j, "tag_name");
+    string prefix = string("https://github.com/") + UPD_REPO + "/";
+    string page = jsonField(j, "html_url"), dl;
+    size_t p = 0;
+    while ((p = j.find("\"browser_download_url\":\"", p)) != string::npos) {
+        p += 24;
+        string u = jsonStrAt(j, p);
+        if (u.size() > 4 && u.compare(u.size() - 4, 4, ".exe") == 0) { dl = u; break; }
+    }
+    // ссылки отдаём только на наш репозиторий
+    if (page.rfind(prefix, 0) != 0) page = prefix + "releases/latest";
+    if (dl.rfind(prefix, 0) != 0) dl = page;
+    bool ok = !tag.empty();
+    cache = string("{\"enabled\":true,\"ok\":") + (ok ? "true" : "false") + ",\"cur\":\"" + APP_VERSION + "\",\"latest\":\"" + jesc(tag) +
+            "\",\"newer\":" + (ok && verNewer(tag, APP_VERSION) ? "true" : "false") + ",\"url\":\"" + jesc(page) + "\",\"dl\":\"" + jesc(dl) + "\"}";
+    okCache = ok; at = now;
+    return cache;
+}
+
 // ============================================================ настройки / белый список / Defender (API)
 static string settingsJson() {
     std::lock_guard<std::mutex> lk(g_cfgMx);
-    string o = string("{\"whitelist\":") + (g_wlOn ? "true" : "false") + ",\"defender\":" + (g_defOn ? "true" : "false") + ",\"entries\":[";
+    string o = string("{\"whitelist\":") + (g_wlOn ? "true" : "false") + ",\"defender\":" + (g_defOn ? "true" : "false") +
+               ",\"updates\":" + (g_updOff ? "false" : "true") + ",\"entries\":[";
     for (size_t i = 0; i < g_wl.size(); i++) {
         auto& e = g_wl[i];
         if (i) o += ",";
@@ -2033,7 +2126,10 @@ static void handleClient(SOCKET s) {
             wchar_t un[256] = L"", cn[256] = L""; DWORD n1 = 256, n2 = 256;
             GetUserNameW(un, &n1); GetComputerNameW(cn, &n2);
             reply(s, 200, JSON, string("{\"admin\":") + (isElevated() ? "true" : "false") + ",\"user\":" + jstr(un) +
-                                    ",\"host\":" + jstr(cn) + ",\"quarantine\":" + jstr(g_exeDir + L"\\Quarantine") + "}");
+                                    ",\"host\":" + jstr(cn) + ",\"quarantine\":" + jstr(g_exeDir + L"\\Quarantine") +
+                                    ",\"version\":\"" + APP_VERSION + "\"}");
+        } else if (path == "/api/update" && method == "GET") {
+            reply(s, 200, JSON, updateJson());
         } else if (path == "/api/scan" && method == "GET") {
             string cat = q["cat"];
             bool known = false;
@@ -2053,6 +2149,7 @@ static void handleClient(SOCKET s) {
                 std::lock_guard<std::mutex> lc(g_cfgMx);
                 if (b.count("whitelist")) g_wlOn = b["whitelist"] == "1";
                 if (b.count("defender")) g_defOn = b["defender"] == "1";
+                if (b.count("updates")) g_updOff = b["updates"] != "1";
                 saveSettings();
             }
             reply(s, 200, JSON, settingsJson());
