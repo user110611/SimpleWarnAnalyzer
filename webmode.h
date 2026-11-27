@@ -1073,6 +1073,7 @@ static void colDefender(vector<WItem>& out) {
     string o = runPs(script);
     size_t pos = 0;
     bool any = false, hiddenShown = false;
+    map<wstring, size_t> thrIdx; map<wstring, int> thrCnt; map<wstring, wstring> thrFirst;   // одна угроза в одном месте = одна строка
     while (pos < o.size()) {
         size_t e = o.find('\n', pos);
         string ln = o.substr(pos, e == string::npos ? string::npos : e - pos);
@@ -1109,9 +1110,27 @@ static void colDefender(vector<WItem>& out) {
             it.name = f[2].empty() ? L"Обнаруженная угроза" : f[2];
             it.detail = f[3]; it.mtime = f[1];
             it.risk = 90;
+            wstring tk = it.name + L"|" + it.detail;
+            auto ex = thrIdx.find(tk);
+            if (ex != thrIdx.end()) {
+                WItem& w = out[ex->second];
+                thrCnt[tk]++;
+                if (f[1] > w.mtime) w.mtime = f[1];
+                if (f[1] < thrFirst[tk]) thrFirst[tk] = f[1];
+                continue;
+            }
+            thrIdx[tk] = out.size(); thrCnt[tk] = 1; thrFirst[tk] = f[1];
             it.reasons.push_back("Защитник Windows обнаружил угрозу");
         } else continue;
         out.push_back(std::move(it));
+    }
+    for (auto& kv : thrIdx) {
+        WItem& w = out[kv.second];
+        int n = thrCnt[kv.first];
+        if (n > 1) {
+            w.sub = L"обнаружено " + std::to_wstring(n) + L" раз";
+            w.reasons.push_back("Первое обнаружение: " + u8(thrFirst[kv.first]) + ", последнее: " + u8(w.mtime));
+        } else w.reasons.push_back("Обнаружено: " + u8(w.mtime));
     }
     if (!any) {
         WItem it; it.name = L"Нет данных от Защитника"; it.detail = L"Защитник Windows недоступен или отключён политикой";

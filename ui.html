@@ -750,7 +750,8 @@ async function trust(ids,add){
 async function ackItems(ids,on){
   if(!ids.length)return;
   const r=await api('/api/ack',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'ids='+ids.join(',')+'&on='+(on?1:0)});
-  applyItems(r.items||[]);S.sel.clear();drawBulk();
+  if(r.ok===false||!r.items){toast(r.error||'Не удалось изменить архив — обнови список');return}
+  applyItems(r.items);S.sel.clear();drawBulk();
   toast(on?`В архиве: ${ids.length}`:`Возвращено из архива: ${ids.length}`);
 }
 $('#bulkTrust').onclick=()=>trust([...S.sel],true);
