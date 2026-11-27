@@ -1769,7 +1769,7 @@ async function checkUpdate(){
     if(u.enabled&&u.ok&&u.newer)showUpdate({ver:u.latest,cur:u.cur,url:u.url,dl:u.dl,preview:false});
   }catch(e){}
 }
-(()=>{const m=/[?&]update=([\w.\-]+)/.exec(location.search);if(m)showUpdate({ver:m[1],cur:'1.1.0',preview:true})})();
+(()=>{const m=/[?&]update=([\w.\-]+)/.exec(location.search);if(m)showUpdate({ver:m[1],cur:'1.0.2',preview:true})})();
 
 /* ---------- старт ---------- */
 (async()=>{

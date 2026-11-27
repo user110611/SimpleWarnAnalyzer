@@ -315,7 +315,7 @@ static wstring dataFile(const wchar_t* name) {
     return p;
 }
 static bool g_wlOn = true, g_defOn = false, g_updOff = false;
-static const char* APP_VERSION = "1.1.0";
+static const char* APP_VERSION = "1.0.2";
 struct WlEntry { string key, hash, date; wstring name; };
 static vector<WlEntry> g_wl;
 
