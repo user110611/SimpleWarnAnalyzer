@@ -111,6 +111,8 @@ struct WItem {
     Item del;
     bool wl = false;             // в белом списке
     bool ack = false;            // отмечено прочитанным
+    string first, ackAt;         // когда впервые замечено / когда отмечено прочитанным
+    bool isnew = false;          // появилось после предыдущих сканирований этого раздела
 };
 
 static std::mutex g_storeMx;
@@ -334,7 +336,69 @@ static void saveAcks() {
     for (auto& e : g_ack) o += e.first + "\t" + e.second + "\n";
     writeFileStr(g_exeDir + L"\\acks.txt", o);
 }
+static string nowStamp() {
+    SYSTEMTIME t; GetLocalTime(&t);
+    char d[32]; snprintf(d, 32, "%04d-%02d-%02d %02d:%02d:%02d", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
+    return d;
+}
+// журнал событий: время, тип, описание (journal.log рядом с exe)
+static std::mutex g_jMx;
+static void jlog(const string& kind, const string& text) {
+    std::lock_guard<std::mutex> lk(g_jMx);
+    string t = text;
+    for (auto& c : t) if (c == '\t' || c == '\n' || c == '\r') c = ' ';
+    string line = nowStamp() + "\t" + kind + "\t" + t + "\n";
+    FILE* f = _wfopen((g_exeDir + L"\\journal.log").c_str(), L"ab");
+    if (!f) return;
+    fwrite(line.data(), 1, line.size(), f);
+    fclose(f);
+}
+static string journalJson() {
+    string a;
+    { std::lock_guard<std::mutex> lk(g_jMx); a = readFileStr(g_exeDir + L"\\journal.log"); }
+    vector<string> lines; size_t p = 0;
+    while (p < a.size()) {
+        size_t e = a.find('\n', p);
+        string ln = a.substr(p, e == string::npos ? string::npos : e - p);
+        p = e == string::npos ? a.size() : e + 1;
+        if (!ln.empty()) lines.push_back(ln);
+    }
+    string o = "{\"events\":[";
+    int n = 0;
+    for (size_t i = lines.size(); i-- > 0 && n < 500;) {
+        size_t t1 = lines[i].find('\t'), t2 = t1 == string::npos ? t1 : lines[i].find('\t', t1 + 1);
+        if (t2 == string::npos) continue;
+        if (n) o += ",";
+        o += "{\"t\":\"" + jesc(lines[i].substr(0, t1)) + "\",\"k\":\"" + jesc(lines[i].substr(t1 + 1, t2 - t1 - 1)) +
+             "\",\"x\":\"" + jesc(lines[i].substr(t2 + 1)) + "\"}";
+        n++;
+    }
+    return o + "]}";
+}
+// когда элемент замечен впервые (seen.txt); у раздела первый скан — «база», новыми считаются только последующие находки
+static std::mutex g_seenMx;
+static map<string, string> g_seen;
+static set<string> g_seenCats;
+static void saveSeen() {
+    string o;
+    for (auto& c : g_seenCats) o += "#\t" + c + "\n";
+    for (auto& e : g_seen) o += e.first + "\t" + e.second + "\n";
+    writeFileStr(g_exeDir + L"\\seen.txt", o);
+}
 static void loadCfg() {
+    {
+        string a = readFileStr(g_exeDir + L"\\seen.txt");
+        size_t p = 0;
+        while (p < a.size()) {
+            size_t e = a.find('\n', p);
+            string line = a.substr(p, e == string::npos ? string::npos : e - p);
+            p = e == string::npos ? a.size() : e + 1;
+            size_t t = line.find('\t');
+            if (t == string::npos) continue;
+            if (line.compare(0, t, "#") == 0) g_seenCats.insert(line.substr(t + 1));
+            else g_seen[line.substr(0, t)] = line.substr(t + 1);
+        }
+    }
     {
         string a = readFileStr(g_exeDir + L"\\acks.txt");
         size_t p = 0;
@@ -425,9 +489,15 @@ static void applyWhitelist(vector<WItem>& v) {
 static void applyAck(vector<WItem>& v) {
     std::lock_guard<std::mutex> lk(g_cfgMx);
     if (g_ack.empty()) return;
-    for (auto& it : v) if (g_ack.count(wlKey(it))) it.ack = true;
+    for (auto& it : v) { auto f = g_ack.find(wlKey(it)); if (f != g_ack.end()) { it.ack = true; it.ackAt = f->second; } }
 }
 
+static string itemLabel(const WItem& it) {
+    string x = u8(it.name);
+    wstring w = !it.full.empty() ? it.full : !it.exe.empty() ? it.exe : it.detail;
+    if (!w.empty()) x += " — " + u8(w);
+    return x;
+}
 static const char* levelOf(int r) { return r >= 70 ? "danger" : r >= 35 ? "warn" : r >= 15 ? "note" : "ok"; }
 
 struct Pat { const wchar_t* s; int p; const char* why; };
@@ -603,6 +673,25 @@ static void finishCat(vector<WItem>& v, const string& cat) {
     for (auto& it : v) analyzeItem(it);
     applyWhitelist(v);
     applyAck(v);
+    if (cat != "processes" && cat != "network" && cat != "custom") {
+        vector<string> fresh;
+        {
+            std::lock_guard<std::mutex> lk(g_seenMx);
+            bool base = g_seenCats.count(cat) > 0, changed = !base;
+            string now = nowStamp();
+            for (auto& it : v) {
+                string k = cat + "@" + wlKey(it);
+                auto f = g_seen.find(k);
+                if (f == g_seen.end()) {
+                    g_seen[k] = now; it.first = now; changed = true;
+                    if (base) { it.isnew = true; if (!it.wl && !it.ack && it.risk >= 35) fresh.push_back(itemLabel(it)); }
+                } else it.first = f->second;
+            }
+            g_seenCats.insert(cat);
+            if (changed) saveSeen();
+        }
+        for (auto& x : fresh) jlog("found", "Новая находка: " + x);
+    }
 }
 
 // ============================================================ сборщики
@@ -1167,6 +1256,9 @@ static string itemJson(const WItem& it) {
     kv("level", string("\"") + levelOf(risk) + "\"");
     kv("wl", wl ? "true" : "false");
     kv("ack", it.ack ? "true" : "false");
+    kv("ackAt", "\"" + jesc(it.ackAt) + "\"");
+    kv("first", "\"" + jesc(it.first) + "\"");
+    kv("isnew", it.isnew ? "true" : "false");
     kv("action", "\"" + it.action + "\"");
     o += "\"reasons\":[";
     if (wl) o += "\"В белом списке — ты отметил этот элемент как доверенный\"";
@@ -1255,6 +1347,7 @@ static string removeJson(const string& idsCsv) {
         string err; bool ok = false;
         if (!found) err = "элемент не найден — обнови список";
         else ok = applyAction(it, err);
+        if (found) jlog(ok ? "action" : "error", string(ok ? "Действие «" : "Не удалось выполнить «") + it.action + "»: " + itemLabel(it) + (ok ? "" : " (" + err + ")"));
         if (ok) {
             std::lock_guard<std::mutex> lk(g_storeMx);
             g_store.erase(id);
@@ -1319,9 +1412,11 @@ static string trustJson(const string& idsCsv, bool add, const string& keyArg) {
                 std::lock_guard<std::mutex> lc(g_cfgMx);
                 g_wl.erase(std::remove_if(g_wl.begin(), g_wl.end(), [&](const WlEntry& x) { return x.key == k; }), g_wl.end());
                 g_wl.push_back(e);
+                jlog("trust", "Добавлено в белый список: " + itemLabel(f->second));
             }
         }
         if (!add) {
+            for (auto& kv : g_store) if (keys.count(wlKey(kv.second))) jlog("trust", "Убрано из белого списка: " + itemLabel(kv.second));
             std::lock_guard<std::mutex> lc(g_cfgMx);
             g_wl.erase(std::remove_if(g_wl.begin(), g_wl.end(), [&](const WlEntry& x) { return keys.count(x.key) > 0; }), g_wl.end());
         }
@@ -1402,7 +1497,10 @@ static string defChangeJson(const string& kind, const string& op, const wstring&
     wstring script = L"[Console]::OutputEncoding=[Text.Encoding]::UTF8;try{" + wstring(op == "add" ? L"Add" : L"Remove") +
                      L"-MpPreference -" + param + L" @('" + q + L"') -ErrorAction Stop;'OK'}catch{'ERR|'+$_.Exception.Message}";
     string o = runPs(script);
-    if (o.rfind("OK", 0) == 0 || o.find("\nOK") != string::npos) return "{\"ok\":true}";
+    if (o.rfind("OK", 0) == 0 || o.find("\nOK") != string::npos) {
+        jlog("defender", string(op == "add" ? "Защитник: добавлено" : "Защитник: удалено") + " [" + kind + "] " + u8(v));
+        return "{\"ok\":true}";
+    }
     size_t p = o.find("ERR|");
     string msg = p == string::npos ? "Защитник не принял изменение (возможно, включена защита от подделки)" : o.substr(p + 4);
     while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r')) msg.pop_back();
@@ -1425,8 +1523,7 @@ static string ackJson(const string& idsCsv, bool on) {
         }
         {
             std::lock_guard<std::mutex> lc(g_cfgMx);
-            SYSTEMTIME t; GetLocalTime(&t);
-            char d[32]; snprintf(d, 32, "%04d-%02d-%02d", t.wYear, t.wMonth, t.wDay);
+            string d = nowStamp();
             for (auto& k : keys) { if (on) g_ack[k] = d; else g_ack.erase(k); }
             saveAcks();
         }
@@ -1434,6 +1531,8 @@ static string ackJson(const string& idsCsv, bool on) {
         for (auto& kv : g_store) {
             if (!keys.count(wlKey(kv.second))) continue;
             kv.second.ack = on;
+            kv.second.ackAt = on ? nowStamp() : "";
+            jlog("ack", string(on ? "В архив (прочитано): " : "Возвращено из архива: ") + itemLabel(kv.second));
             if (!first) res += ",";
             first = false;
             res += itemJson(kv.second);
@@ -1642,6 +1741,8 @@ static void handleClient(SOCKET s) {
         } else if (path == "/api/ack" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, ackJson(b["ids"], b["on"] != "0"));
+        } else if (path == "/api/journal" && method == "GET") {
+            reply(s, 200, JSON, journalJson());
         } else if (path == "/api/defender/prefs" && method == "GET") {
             reply(s, 200, JSON, defPrefsJson());
         } else if (path == "/api/defender/change" && method == "POST") {
@@ -1686,6 +1787,7 @@ static int runWeb(int argc, char** argv) {
     wchar_t wb[MAX_PATH]; GetWindowsDirectoryW(wb, MAX_PATH);
     g_winOrig = wb; g_win = lowerW(wb);
     loadCfg();
+    jlog("start", "Сканер запущен");
 
     std::random_device rd;
     char tk[40];

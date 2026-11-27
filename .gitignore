@@ -9,3 +9,5 @@ Quarantine/
 settings.json
 whitelist.txt
 acks.txt
+journal.log
+seen.txt

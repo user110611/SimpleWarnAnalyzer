@@ -323,6 +323,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(p,o={}){
   const r=await fetch(p,{...o,headers:{'X-Token':TOKEN,...(o.headers||{})}});
+  if(r.status===404)return{ok:false,error:'Запущенная версия сканера устарела — в ней нет этой функции. Закрой SySscaner, запусти build.bat и открой сканер заново.'};
   return r.json();
 }
 const ic={
@@ -382,6 +383,7 @@ const AUTO=new Set(['run_user','run_sys','run_wow','runonce_user','runonce_sys',
 const VIEWS={
   all:{n:'Обзор',h:'Всё найденное во всех разделах, самое подозрительное — сверху. Нажми на элемент, чтобы увидеть подробности.'},
   autostart:{n:'Автозагрузка',h:'Всё, что запускается само при входе в Windows: реестр, папки, планировщик и редкие места закрепления вирусов (IFEO, AppInit, Active Setup). Службы — в разделе «Система».'},
+  journal:{n:'Журнал',h:'Что и когда происходило: новые находки, отметки «прочитано», белый список, удаления и карантин, изменения Защитника.'},
   archive:{n:'Архив',h:'Элементы, отмеченные прочитанными. Они не показываются в разделах и не считаются угрозами. Выбери элемент и нажми «Вернуть», чтобы достать его из архива.'}
 };
 const HIDE_SYS=new Set(['autostart','tasks','services','processes','network']);
@@ -468,7 +470,8 @@ function drawNav(){
     else if(f)b=f.danger?['danger',f.danger]:['warn',f.warn];
     h+=btn(c.id,c.n,ic[c.i],b,total[c.id]);
   }
-  if(arch||S.view==='archive')h+=`<div class="grp">Прочитано</div>`+btn('archive','Архив',ic.ok,null,arch);
+  h+=`<div class="grp">История</div>`+btn('journal','Журнал',ic.clock,null,null);
+  if(arch||S.view==='archive')h+=btn('archive','Архив',ic.ok,null,arch);
   $('#nav').innerHTML=h;
   function btn(id,n,icon,b,t){
     let p;
@@ -493,6 +496,7 @@ function drawHead(){
   $('#scanBar').style.width=S.running?(S.done/S.total*100)+'%':'0';
 }
 function drawStrip(){
+  if(S.view==='journal'){$('#strip').innerHTML='';$('#verdict').innerHTML='';$('#ackAll').style.display='none';$('#places').style.display='none';return}
   const c=counts(scope());
   $('#strip').innerHTML=(S.view==='archive'?[]:['danger','warn','note','ok']).map(k=>`<button class="stat ${k} ${S.lv[k]?'':'off'} ${c[k]?'':'zero'}" data-lv="${k}"><span class="n">${c[k]}</span><span class="t"><i></i>${LV[k]}</span></button>`).join('');
   const all=c, here=S.view==='all'?'':' в этом разделе';
@@ -529,6 +533,7 @@ function row(i){
   let tags='';
   if(S.view==='all')tags+=`<span class="tag cat">${esc(c.n)}</span>`;
   if(i.wl)tags+=`<span class="tag good">Доверенный</span>`;
+  if(i.isnew&&!i.ack)tags+=`<span class="tag mid" title="Появилось с прошлого сканирования: ${esc(i.first)}">Новое</span>`;
   if(i.ack)tags+=`<span class="tag">${LV[i.level]}</span>`;
   if(i.state)tags+=`<span class="tag ${i.state==='running'?'good':''}">${STATE[i.state]||esc(i.state)}</span>`;
   if(i.start&&i.start!=='?'&&i.cat==='services')tags+=`<span class="tag">${esc(i.start)}</span>`;
@@ -543,6 +548,7 @@ function row(i){
 }
 function drawList(){
   const L=$('#list');
+  if(S.view==='journal'){drawJournal();return}
   if(S.running&&!S.items.size){L.innerHTML='<div class="skel"></div>'.repeat(9);return}
   if(S.view==='custom'&&!S.cats.custom&&!S.items.size){L.innerHTML=`<div class="empty"><h3>Выбери папку</h3><p>Введи путь выше и нажми «Показать».</p></div>`;return}
   const st=S.cats[S.view];
@@ -557,6 +563,29 @@ function drawList(){
   let h=shown.map(row).join('');
   if(a.length>shown.length)h+=`<button class="btn more" id="more">Показать ещё (${a.length-shown.length})</button>`;
   if(st&&st.trunc)h+=`<div class="empty" style="padding:20px"><p>Список слишком большой и показан не полностью.</p></div>`;
+  L.innerHTML=h;
+}
+const JK={found:['Находка','bad'],ack:['Архив',''],trust:['Белый список','good'],action:['Действие','mid'],error:['Ошибка','bad'],defender:['Защитник','good'],start:['Запуск','']};
+let JR=null;
+async function loadJournal(){
+  JR=null;drawList();
+  try{const r=await api('/api/journal');JR=r.ok===false?{err:r.error}:r.events}catch(e){JR={err:'нет связи со сканером'}}
+  if(S.view==='journal')drawList();
+}
+function drawJournal(){
+  const L=$('#list');
+  if(!JR){L.innerHTML='<div class="skel"></div>'.repeat(6);return}
+  if(JR.err){L.innerHTML=`<div class="empty"><h3>Журнал недоступен</h3><p>${esc(JR.err)}</p></div>`;return}
+  const q=S.q.trim().toLowerCase();
+  const a=JR.filter(e=>!q||(e.x+' '+e.t).toLowerCase().includes(q));
+  if(!a.length){L.innerHTML=`<div class="empty"><div class="big">${ic.ok}</div><h3>Пока пусто</h3><p>События появятся, когда вы начнёте работать со сканером.</p></div>`;return}
+  let day='',h='';
+  for(const e of a.slice(0,400)){
+    const d=e.t.slice(0,10);
+    if(d!==day){day=d;h+=`<div class="grp" style="padding:14px 4px 4px">${d===new Date().toLocaleDateString('sv')?'Сегодня':d}</div>`}
+    const k=JK[e.k]||[e.k,''];
+    h+=`<div class="row" style="cursor:default;display:flex;align-items:center;gap:14px"><span class="pth" style="flex:none;margin:0">${e.t.slice(11,19)}</span><span class="tag ${k[1]}" style="flex:none;min-width:92px;text-align:center">${k[0]}</span><div style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(e.x)}</div></div>`;
+  }
   L.innerHTML=h;
 }
 function drawBulk(){
@@ -593,7 +622,7 @@ function drawDrawer(){
     ${i.cat==='processes'?kv('PID',String(i.pid))+kv('Родитель',i.parent?`${i.parent} (${i.ppid})`:String(i.ppid)):''}
     ${kv('Состояние',STATE[i.state]||'')}
     ${i.cat==='services'?kv('Запуск',i.start):''}
-    ${i.size>=0?kv('Размер',fmtSize(i.size)):''}${kv('Изменён',i.mtime)}${i.hidden?kv('Атрибут','скрытый'):''}
+    ${i.size>=0?kv('Размер',fmtSize(i.size)):''}${kv('Изменён',i.mtime)}${kv('Впервые замечено',i.first)}${i.ack?kv('В архиве с',i.ackAt):''}${i.hidden?kv('Атрибут','скрытый'):''}
    </dl></div>
    <div class="df">
     ${(i.full||i.path)?`<button class="btn" id="dReveal">${ic.open}Показать в папке</button>`:''}
@@ -658,6 +687,7 @@ $('#nav').onclick=e=>{
   go(b.dataset.v);
 };
 function go(v){
+  if(v==='journal'){S.view=v;S.q='';$('#q').value='';closeDrawer();draw();loadJournal();return}
   if(v==='defender'&&!S.set.defender){toast('Доступ к Защитнику выключен — включи его в настройках');openSettings();return}
   S.view=v;S.limit=150;S.lv.ok=v!=='all';S.hideSys=HIDE_SYS.has(v);closeDrawer();draw();
   $('#list').scrollTop=0;
