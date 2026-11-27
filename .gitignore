@@ -11,3 +11,4 @@ whitelist.txt
 acks.txt
 journal.log
 seen.txt
+hosts_backups/

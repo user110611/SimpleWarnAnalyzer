@@ -277,6 +277,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
   <main class="main">
     <header class="top">
       <div class="ttl"><h1 id="vTitle">Обзор</h1><div class="desc" id="vDesc"></div></div>
+      <button class="btn" id="hostAdd" style="display:none"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Добавить запись</button>
       <button class="btn" id="defMan" style="display:none"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/></svg>Управление Защитником</button>
       <div class="zgrp" title="Масштаб (Ctrl + колесо, Ctrl +/−, Ctrl 0)"><button data-z="-" aria-label="Уменьшить">−</button><button class="zv" data-z="0" id="zv" title="Сбросить масштаб">100%</button><button data-z="+" aria-label="Увеличить">+</button></div>
       <button class="iconbtn" id="menuBtn" title="Меню"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
@@ -518,6 +519,7 @@ function drawHead(){
   $('#custom').classList.toggle('on',S.view==='custom');
   $('#hsys').classList.toggle('on',S.hideSys);
   $('#defMan').style.display=S.view==='defender'&&S.set.defender?'':'none';
+  $('#hostAdd').style.display=S.view==='hosts'?'':'none';
   $('#places').style.display=(S.view==='all'||S.view==='autostart')&&S.items.size?'flex':'none';
   const sb=$('#scanBtn');
   sb.disabled=!!S.running;
@@ -660,6 +662,7 @@ function drawDrawer(){
     ${(i.level==='danger'||i.level==='warn'||i.level==='note')&&!i.wl?(i.ack?`<button class="btn" id="dUnack">${ic.ok}Вернуть из архива</button>`:`<button class="btn ${i.cat==='defender'?'primary':''}" id="dAck">${ic.ok}В архив (прочитано)</button>`):''}
     ${S.set.whitelist&&i.cat!=='defender'?(i.wl?`<button class="btn" id="dUntrust">${ic.star}Убрать из белого списка</button>`:`<button class="btn" id="dTrust">${ic.star}Доверять</button>`):''}
     ${S.set.defender&&(i.full||i.path)?`<button class="btn" id="dDef">${ic.shield}Проверить Защитником</button>`:''}
+    ${i.cat==='hosts'?`<button class="btn" id="dHEdit">Изменить запись</button><button class="btn danger" id="dHDel">${ic.trash}Удалить запись</button>`:''}
     ${act?`<button class="btn ${i.level==='danger'||i.level==='warn'?'danger':''}" id="dAct">${ic.trash}${act[0]}</button>`:''}
    </div>`;
 }
@@ -753,6 +756,8 @@ $('#drawer').onclick=async e=>{
   else if(e.target.closest('#dCopy')){try{await navigator.clipboard.writeText(i.full||i.path||i.detail);toast('Путь скопирован')}catch(_){toast('Не удалось скопировать',1)}}
   else if(e.target.closest('#dReveal')){const r=await api('/api/reveal?id='+i.id,{method:'POST'});if(!r.ok)toast(r.error,1)}
   else if(e.target.closest('#dAct'))confirmRemove([i.id]);
+  else if(e.target.closest('#dHEdit'))openHostEdit(i);
+  else if(e.target.closest('#dHDel'))hostDelete(i);
   else if(e.target.closest('#dAck'))ackItems([i.id],true);
   else if(e.target.closest('#dUnack'))ackItems([i.id],false);
   else if(e.target.closest('#dTrust'))trust([i.id],true);
@@ -907,6 +912,36 @@ async function dmAct(a,k,v){
   }
 }
 $('#defMan').onclick=openDefMan;
+/* ---------- редактирование файла hosts ---------- */
+function openHostEdit(i){
+  $('#mbox').innerHTML=`<h3>${i?'Изменить запись hosts':'Новая запись hosts'}</h3>
+   <p>Файл hosts связывает имя сайта с IP-адресом: например, 127.0.0.1 и example.com блокирует этот сайт. Перед изменением сканер сохраняет копию файла в папку hosts_backups рядом с собой.</p>
+   <div class="mbody"><div style="padding:4px 22px 12px;display:grid;gap:12px">
+    <label style="display:grid;gap:6px;color:var(--dim);font-size:13px">IP-адрес<input class="minput" id="hIp" placeholder="127.0.0.1" value="${esc(i?i.sub:'')}"></label>
+    <label style="display:grid;gap:6px;color:var(--dim);font-size:13px">Имя сайта (можно несколько через пробел)<input class="minput" id="hNm" placeholder="example.com" value="${esc(i?i.name:'')}"></label>
+    <div id="hErr" style="color:var(--danger);font-size:13px;min-height:18px"></div>
+   </div></div>
+   <div class="mf"><button class="btn ghost" id="hCancel">Отмена</button><button class="btn primary" id="hSave">Сохранить</button></div>`;
+  $('#modal').classList.add('on');
+  setTimeout(()=>$(i?'#hNm':'#hIp').focus(),30);
+  $('#hCancel').onclick=()=>$('#modal').classList.remove('on');
+  const save=async()=>{
+    const b=$('#hSave');b.disabled=true;
+    const r=await api('/api/hosts/change',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'op='+(i?'edit':'add')+'&old='+encodeURIComponent(i?i.detail:'')+'&ip='+encodeURIComponent($('#hIp').value)+'&names='+encodeURIComponent($('#hNm').value)}).catch(()=>({ok:false,error:'нет связи со сканером'}));
+    b.disabled=false;
+    if(!r.ok){$('#hErr').textContent=r.error||'не удалось сохранить';return}
+    $('#modal').classList.remove('on');closeDrawer();toast(i?'Запись изменена':'Запись добавлена');scanCat('hosts');
+  };
+  $('#hSave').onclick=save;
+  $('#mbox').querySelectorAll('input').forEach(x=>x.onkeydown=e=>{if(e.key==='Enter')save()});
+}
+async function hostDelete(i){
+  if(!confirm(['Удалить запись из файла hosts?',i.detail,'Копия файла будет сохранена в папку hosts_backups.'].join('\n\n')))return;
+  const r=await api('/api/hosts/change',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'op=remove&old='+encodeURIComponent(i.detail)}).catch(()=>({ok:false,error:'нет связи со сканером'}));
+  if(!r.ok){toast(r.error||'не удалось удалить',true);return}
+  closeDrawer();toast('Запись удалена');scanCat('hosts');
+}
+$('#hostAdd').onclick=()=>openHostEdit(null);
 async function elevate(){
   if(S.info.admin){toast('Уже запущено от администратора');return}
   const r=await api('/api/elevate',{method:'POST'}).catch(()=>({ok:true}));

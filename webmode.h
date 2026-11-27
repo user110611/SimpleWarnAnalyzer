@@ -1560,6 +1560,79 @@ static string ackJson(const string& idsCsv, bool on) {
     return res + "]}";
 }
 
+// ---------- редактирование файла hosts: добавить / изменить / удалить запись (перед правкой делается копия) ----------
+static string normHostsLine(const string& line) {   // без комментария, пробелы схлопнуты
+    string l = line;
+    size_t h = l.find('#'); if (h != string::npos) l.resize(h);
+    string o; bool sp = false;
+    for (unsigned char c : l) {
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') sp = true;
+        else { if (sp && !o.empty()) o += ' '; sp = false; o += (char)c; }
+    }
+    return o;
+}
+static string hostsChangeJson(const string& op, const string& oldLine, const string& ipIn, const string& namesIn) {
+    auto err = [](const string& e) { return "{\"ok\":false,\"error\":\"" + jesc(e) + "\"}"; };
+    if (op != "add" && op != "edit" && op != "remove") return err("неизвестное действие");
+    if (!isElevated()) return err("Нужны права администратора: запусти сканер от администратора (кнопка «Повысить»)");
+    string newLine;
+    if (op != "remove") {
+        string ip = normHostsLine(ipIn), names = normHostsLine(namesIn);
+        in_addr a4; in6_addr a6;
+        if (ip.empty() || ip.find(' ') != string::npos || (inet_pton(AF_INET, ip.c_str(), &a4) != 1 && inet_pton(AF_INET6, ip.c_str(), &a6) != 1))
+            return err("некорректный IP-адрес, например 127.0.0.1");
+        if (names.empty()) return err("укажи имя сайта, например example.com");
+        size_t p = 0;
+        while (p <= names.size()) {
+            size_t sp = names.find(' ', p);
+            string t = names.substr(p, sp == string::npos ? string::npos : sp - p);
+            p = sp == string::npos ? names.size() + 1 : sp + 1;
+            if (t.empty() || t.size() > 253) return err("слишком длинное или пустое имя сайта");
+            for (unsigned char c : t) if (!(std::isalnum(c) || c == '.' || c == '-' || c == '_' || c == '*')) return err("в имени сайта допустимы буквы, цифры, точка, дефис и подчёркивание");
+        }
+        newLine = ip + "\t" + names;
+    }
+    wstring path = g_winOrig + L"\\System32\\drivers\\etc\\hosts";
+    string s = readFileStr(path);
+    vector<string> lines; size_t pos = 0;
+    while (pos < s.size()) {
+        size_t e = s.find('\n', pos);
+        string ln = s.substr(pos, e == string::npos ? string::npos : e - pos);
+        pos = e == string::npos ? s.size() : e + 1;
+        while (!ln.empty() && ln.back() == '\r') ln.pop_back();
+        lines.push_back(ln);
+    }
+    string newN = normHostsLine(newLine), oldN = normHostsLine(oldLine);
+    bool done = false;
+    if (op == "add") {
+        for (auto& ln : lines) if (normHostsLine(ln) == newN) return err("такая запись уже есть");
+        lines.push_back(newLine); done = true;
+    } else {
+        if (oldN.empty()) return err("не указана запись");
+        for (size_t i = 0; i < lines.size();) {
+            if (normHostsLine(lines[i]) != oldN) { i++; continue; }
+            if (op == "remove") { lines.erase(lines.begin() + i); done = true; continue; }
+            if (!done) { lines[i] = newLine; done = true; i++; } else i++;
+        }
+        if (!done) return err("запись не найдена — обнови список");
+    }
+    wstring bdir = g_exeDir + L"\\hosts_backups";
+    CreateDirectoryW(bdir.c_str(), nullptr);
+    string st = nowStamp(); string tag;
+    for (char c : st) if (c != '-' && c != ':') tag += (c == ' ' ? '_' : c);
+    if (!s.empty() && !CopyFileW(path.c_str(), (bdir + L"\\hosts-" + toWide(tag) + L".bak").c_str(), FALSE))
+        return err("не удалось сохранить копию hosts — изменение отменено");
+    string out;
+    for (auto& ln : lines) out += ln + "\r\n";
+    FILE* f = _wfopen(path.c_str(), L"wb");
+    if (!f) return err("не удалось записать hosts (файл защищён или занят другой программой)");
+    fwrite(out.data(), 1, out.size(), f);
+    fclose(f);
+    jlog("hosts", string(op == "add" ? "hosts: добавлена запись " : op == "edit" ? "hosts: изменена запись «" + oldN + "» → " : "hosts: удалена запись ") +
+                  (op == "remove" ? oldN : newN));
+    return "{\"ok\":true}";
+}
+
 static wstring findMpCmd() {
     wstring base = expand(L"%ProgramData%\\Microsoft\\Windows Defender\\Platform"), best;
     WIN32_FIND_DATAW fd;
@@ -1760,6 +1833,9 @@ static void handleClient(SOCKET s) {
         } else if (path == "/api/ack" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, ackJson(b["ids"], b["on"] != "0"));
+        } else if (path == "/api/hosts/change" && method == "POST") {
+            auto b = parseQuery(body);
+            reply(s, 200, JSON, hostsChangeJson(b["op"], b["old"], b["ip"], b["names"]));
         } else if (path == "/api/journal" && method == "GET") {
             reply(s, 200, JSON, journalJson());
         } else if (path == "/api/defender/prefs" && method == "GET") {
