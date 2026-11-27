@@ -303,6 +303,16 @@ static bool resolveLnk(const wstring& lnk, wstring& target, wstring& args) {
 
 // ============================================================ настройки и белый список
 static std::mutex g_cfgMx;
+// все данные пользователя (архив, журнал, белый список, настройки) лежат в папке «Данные» рядом со сканером;
+// файл из старого места при первом обращении копируется (оригинал не трогаем)
+static wstring dataFile(const wchar_t* name) {
+    wstring dir = g_exeDir + L"\\Данные";
+    CreateDirectoryW(dir.c_str(), nullptr);
+    wstring p = dir + L"\\" + name, old = g_exeDir + L"\\" + name;
+    if (GetFileAttributesW(p.c_str()) == INVALID_FILE_ATTRIBUTES && GetFileAttributesW(old.c_str()) != INVALID_FILE_ATTRIBUTES)
+        CopyFileW(old.c_str(), p.c_str(), TRUE);
+    return p;
+}
 static bool g_wlOn = true, g_defOn = false;
 struct WlEntry { string key, hash, date; wstring name; };
 static vector<WlEntry> g_wl;
@@ -322,19 +332,28 @@ static void writeFileStr(const wstring& p, const string& s) {
     fclose(f);
 }
 static void saveSettings() {
-    writeFileStr(g_exeDir + L"\\settings.json", string("{\"whitelist\":") + (g_wlOn ? "true" : "false") +
+    writeFileStr(dataFile(L"settings.json"), string("{\"whitelist\":") + (g_wlOn ? "true" : "false") +
                                                     ",\"defender\":" + (g_defOn ? "true" : "false") + "}\n");
 }
 static void saveWl() {
     string o;
     for (auto& e : g_wl) o += e.key + "\t" + e.hash + "\t" + e.date + "\t" + u8(e.name) + "\n";
-    writeFileStr(g_exeDir + L"\\whitelist.txt", o);
+    writeFileStr(dataFile(L"whitelist.txt"), o);
 }
-static map<string, string> g_ack;   // ключ элемента -> дата, когда отмечен прочитанным
+static map<string, string> g_ack;      // ключ элемента -> время, когда отмечен прочитанным
+static map<string, string> g_ackLbl;   // ключ элемента -> понятное описание (имя — путь) для файла «Архив.txt»
 static void saveAcks() {
     string o;
-    for (auto& e : g_ack) o += e.first + "\t" + e.second + "\n";
-    writeFileStr(g_exeDir + L"\\acks.txt", o);
+    for (auto& e : g_ack) { auto l = g_ackLbl.find(e.first); o += e.first + "\t" + e.second + "\t" + (l == g_ackLbl.end() ? "" : l->second) + "\n"; }
+    writeFileStr(dataFile(L"acks.txt"), o);
+    // читаемая копия архива: новые записи сверху
+    vector<std::pair<string, string>> rows;
+    for (auto& e : g_ack) { auto l = g_ackLbl.find(e.first); rows.push_back({e.second, l == g_ackLbl.end() ? e.first : l->second}); }
+    std::sort(rows.begin(), rows.end(), [](const std::pair<string, string>& a, const std::pair<string, string>& b) { return a.first > b.first; });
+    string h = "Архив сканера — элементы, отмеченные прочитанными (" + std::to_string(rows.size()) + ")\r\n"
+               "Файл только для чтения: изменения вносите в сканере (раздел «Архив»).\r\n\r\n";
+    for (auto& r : rows) h += r.first + "   " + r.second + "\r\n";
+    writeFileStr(dataFile(L"Архив.txt"), h);
 }
 static string nowStamp() {
     SYSTEMTIME t; GetLocalTime(&t);
@@ -348,14 +367,14 @@ static void jlog(const string& kind, const string& text) {
     string t = text;
     for (auto& c : t) if (c == '\t' || c == '\n' || c == '\r') c = ' ';
     string line = nowStamp() + "\t" + kind + "\t" + t + "\n";
-    FILE* f = _wfopen((g_exeDir + L"\\journal.log").c_str(), L"ab");
+    FILE* f = _wfopen((dataFile(L"journal.log")).c_str(), L"ab");
     if (!f) return;
     fwrite(line.data(), 1, line.size(), f);
     fclose(f);
 }
 static string journalJson() {
     string a;
-    { std::lock_guard<std::mutex> lk(g_jMx); a = readFileStr(g_exeDir + L"\\journal.log"); }
+    { std::lock_guard<std::mutex> lk(g_jMx); a = readFileStr(dataFile(L"journal.log")); }
     vector<string> lines; size_t p = 0;
     while (p < a.size()) {
         size_t e = a.find('\n', p);
@@ -383,11 +402,11 @@ static void saveSeen() {
     string o;
     for (auto& c : g_seenCats) o += "#\t" + c + "\n";
     for (auto& e : g_seen) o += e.first + "\t" + e.second + "\n";
-    writeFileStr(g_exeDir + L"\\seen.txt", o);
+    writeFileStr(dataFile(L"seen.txt"), o);
 }
 static void loadCfg() {
     {
-        string a = readFileStr(g_exeDir + L"\\seen.txt");
+        string a = readFileStr(dataFile(L"seen.txt"));
         size_t p = 0;
         while (p < a.size()) {
             size_t e = a.find('\n', p);
@@ -400,22 +419,26 @@ static void loadCfg() {
         }
     }
     {
-        string a = readFileStr(g_exeDir + L"\\acks.txt");
+        string a = readFileStr(dataFile(L"acks.txt"));
         size_t p = 0;
         while (p < a.size()) {
             size_t e = a.find('\n', p);
             string line = a.substr(p, e == string::npos ? string::npos : e - p);
             p = e == string::npos ? a.size() : e + 1;
             size_t t = line.find('\t');
-            if (!line.empty()) g_ack[t == string::npos ? line : line.substr(0, t)] = t == string::npos ? "" : line.substr(t + 1);
+            if (line.empty()) continue;
+            string key = t == string::npos ? line : line.substr(0, t), rest = t == string::npos ? "" : line.substr(t + 1);
+            size_t t2 = rest.find('\t');
+            g_ack[key] = t2 == string::npos ? rest : rest.substr(0, t2);
+            if (t2 != string::npos) g_ackLbl[key] = rest.substr(t2 + 1);
         }
     }
-    string s = readFileStr(g_exeDir + L"\\settings.json");
+    string s = readFileStr(dataFile(L"settings.json"));
     if (!s.empty()) {
         g_wlOn = s.find("\"whitelist\":false") == string::npos;
         g_defOn = s.find("\"defender\":true") != string::npos;
     }
-    string w = readFileStr(g_exeDir + L"\\whitelist.txt");
+    string w = readFileStr(dataFile(L"whitelist.txt"));
     size_t pos = 0;
     while (pos < w.size()) {
         size_t e = w.find('\n', pos);
@@ -1529,6 +1552,7 @@ static string defChangeJson(const string& kind, const string& op, const wstring&
 // отметить элементы прочитанными / вернуть в непрочитанные; возвращает обновлённые элементы
 static string ackJson(const string& idsCsv, bool on) {
     set<string> keys;
+    map<string, string> lbls;
     string res = "{\"items\":[";
     {
         std::lock_guard<std::mutex> lk(g_storeMx);
@@ -1538,12 +1562,12 @@ static string ackJson(const string& idsCsv, bool on) {
             string tok = idsCsv.substr(pos, c == string::npos ? string::npos : c - pos);
             pos = c == string::npos ? idsCsv.size() + 1 : c + 1;
             auto f = g_store.find(atol(tok.c_str()));
-            if (f != g_store.end()) keys.insert(wlKey(f->second));
+            if (f != g_store.end()) { string k = wlKey(f->second); keys.insert(k); lbls[k] = itemLabel(f->second); }
         }
         {
             std::lock_guard<std::mutex> lc(g_cfgMx);
             string d = nowStamp();
-            for (auto& k : keys) { if (on) g_ack[k] = d; else g_ack.erase(k); }
+            for (auto& k : keys) { if (on) { g_ack[k] = d; g_ackLbl[k] = lbls[k]; } else { g_ack.erase(k); g_ackLbl.erase(k); } }
             saveAcks();
         }
         bool first = true;

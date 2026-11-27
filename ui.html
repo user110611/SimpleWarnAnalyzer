@@ -249,7 +249,8 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 .shead{padding:14px 22px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint)}
 .mlist .wl{display:flex;gap:10px;align-items:center}.mlist .wl>div{flex:1;min-width:0}
 .mbody{overflow:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain;scroll-behavior:smooth;background:linear-gradient(var(--panel) 30%,transparent) top,linear-gradient(transparent,var(--panel) 70%) bottom,radial-gradient(farthest-side at 50% 0,rgba(0,0,0,.35),transparent) top,radial-gradient(farthest-side at 50% 100%,rgba(0,0,0,.35),transparent) bottom;background-repeat:no-repeat;background-size:100% 28px,100% 28px,100% 10px,100% 10px;background-attachment:local,local,scroll,scroll}
-.mbox h3{flex:none}.mf{flex:none;border-top:1px solid var(--line)}
+.mbox h3{flex:none;cursor:move;user-select:none}
+.mbox h3::after{content:"⠿";float:right;color:var(--faint);font-weight:400;font-size:15px}.mf{flex:none;border-top:1px solid var(--line)}
 .list,.drawer .dbody,.nav{overscroll-behavior:contain}
 @media (max-width:900px){
   .app{grid-template-columns:64px minmax(0,1fr)}
@@ -912,6 +913,29 @@ async function dmAct(a,k,v){
   }
 }
 $('#defMan').onclick=openDefMan;
+/* окна можно перетаскивать за заголовок; положение сбрасывается при закрытии */
+(()=>{
+  const box=$('#mbox'),modal=$('#modal');let ox=0,oy=0,drag=null;
+  const apply=()=>{box.style.transform=`translate(${ox}px,${oy}px)`};
+  box.addEventListener('mousedown',e=>{
+    const h=e.target.closest('h3');if(!h||e.button!==0)return;
+    drag={x:e.clientX,y:e.clientY,ox,oy};e.preventDefault();document.body.style.userSelect='none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag)return;
+    const z=S.zoom||1,r=box.getBoundingClientRect();
+    let nx=drag.ox+(e.clientX-drag.x)/z,ny=drag.oy+(e.clientY-drag.y)/z;
+    // не даём утащить заголовок за пределы экрана
+    const dx=(nx-ox)*z,dy=(ny-oy)*z;
+    if(r.top+dy<0)ny=oy-r.top/z;
+    if(r.top+dy>innerHeight-50)ny=oy+(innerHeight-50-r.top)/z;
+    if(r.right+dx<80)nx=ox+(80-r.right)/z;
+    if(r.left+dx>innerWidth-80)nx=ox+(innerWidth-80-r.left)/z;
+    ox=nx;oy=ny;apply();
+  });
+  document.addEventListener('mouseup',()=>{if(drag){drag=null;document.body.style.userSelect=''}});
+  new MutationObserver(()=>{if(!modal.classList.contains('on')){ox=oy=0;apply()}}).observe(modal,{attributes:true,attributeFilter:['class']});
+})();
 /* ---------- редактирование файла hosts ---------- */
 function openHostEdit(i){
   $('#mbox').innerHTML=`<h3>${i?'Изменить запись hosts':'Новая запись hosts'}</h3>
