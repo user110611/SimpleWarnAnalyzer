@@ -214,6 +214,37 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 .stat.ack .n{color:var(--faint)} .stat.ack i{background:var(--faint)}
 .lvl.ack{background:var(--panel2);color:var(--dim)}
 .dmtabs{display:flex;gap:6px;padding:4px 22px 10px}
+.home{display:grid;gap:18px;padding:6px 8px 40px 0;max-width:980px}
+.hero{display:flex;gap:18px;align-items:center;padding:22px 24px;border-radius:18px;border:1px solid var(--line);background:var(--panel)}
+.hero .hi{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--ok-bg);color:var(--ok)}
+.hero .hi svg{width:32px;height:32px;stroke-width:1.6}
+.hero.danger{border-color:var(--danger);background:var(--danger-bg)} .hero.danger .hi{background:var(--danger-bg);color:var(--danger)}
+.hero.warn{border-color:var(--warn);background:var(--warn-bg)} .hero.warn .hi{background:var(--warn-bg);color:var(--warn)}
+.hero.idle .hi{background:var(--accent-bg);color:var(--accent)}
+.hero h2{margin:0 0 4px;font-size:21px;letter-spacing:-.2px}
+.hero p{margin:0;color:var(--dim);font-size:14px}
+.hero .hb{margin-left:auto;display:flex;gap:8px;flex:none}
+.hsec h3{margin:0 0 10px;font-size:15px;display:flex;gap:8px;align-items:center}
+.hsec h3 small{font-weight:400;color:var(--faint);font-size:12.5px}
+.issue{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:grid;gap:8px}
+.issue.danger{border-left:3px solid var(--danger)} .issue.warn{border-left:3px solid var(--warn)}
+.issue .it{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.issue .it b{font-size:15px;overflow-wrap:anywhere}
+.issue .where{color:var(--faint);font-size:12.5px}
+.issue .why{color:var(--dim);font-size:13.5px}
+.issue .pth{margin:0;overflow-wrap:anywhere;white-space:normal}
+.issue .ia{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tile{text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.tile:hover{border-color:var(--line2);background:var(--panel2)}
+.tile b{font-size:13.5px;font-weight:600} .tile span{font-size:12.5px;color:var(--faint)}
+.tile i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px}
+.tile.warn i{background:var(--warn)} .tile.danger i{background:var(--danger)}
+.chg{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:6px 16px}
+.chg div{padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px;overflow-wrap:anywhere;display:flex;gap:10px}
+.chg div:last-child{border:0}
+.chg .k{flex:none;min-width:70px;font-size:12px;padding:1px 8px;border-radius:6px;height:20px;text-align:center}
+.chg .k.new{background:var(--warn-bg);color:var(--warn)} .chg .k.gone{background:var(--panel2);color:var(--dim)}
 .dmtabs button{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--dim)}
 .dmtabs button.on{background:var(--accent-bg);border-color:var(--accent);color:var(--text)}
 .dmgrp{padding:2px 22px 10px}
@@ -395,7 +426,8 @@ const SIG={signed:['Подписано','good'],unsigned:['Без подписи
 
 const AUTO=new Set(['run_user','run_sys','run_wow','runonce_user','runonce_sys','policies_run','winlogon','startup_user','startup_all','tasks','activesetup','ifeo','appinit']);
 const VIEWS={
-  all:{n:'Обзор',h:'Всё найденное во всех разделах, самое подозрительное — сверху. Нажми на элемент, чтобы увидеть подробности.'},
+  home:{n:'Главная',h:'Простая сводка: что найдено и что с этим делать.'},
+  all:{n:'Все находки',h:'Всё найденное во всех разделах, самое подозрительное — сверху. Нажми на элемент, чтобы увидеть подробности.'},
   autostart:{n:'Автозагрузка',h:'Всё, что запускается само при входе в Windows: реестр, папки, планировщик и редкие места закрепления вирусов (IFEO, AppInit, Active Setup). Службы — в разделе «Система».'},
   journal:{n:'Журнал',h:'Что и когда происходило: новые находки, отметки «прочитано», белый список, удаления и карантин, изменения Защитника.'},
   quarantine:{n:'Карантин',h:'Файлы, которые сканер убрал из системы. Здесь их можно вернуть на место или удалить навсегда.'},
@@ -403,7 +435,7 @@ const VIEWS={
 };
 const HIDE_SYS=new Set(['autostart','tasks','services','processes','network']);
 const STATE={running:'работает',stopped:'остановлена',enabled:'включена',disabled:'отключена',listen:'слушает',estab:'подключено'};
-const S={items:new Map(),cats:{},view:'autostart',lv:{danger:1,warn:1,note:1,ok:1,ack:0},sig:'',q:'',sort:'risk',hideSys:true,sel:new Set(),open:null,limit:150,running:0,total:0,done:0,t0:0,doneOnce:false,info:{admin:false},set:{whitelist:true,defender:false,entries:[]}};
+const S={items:new Map(),cats:{},gone:{},view:'home',lv:{danger:1,warn:1,note:1,ok:1,ack:0},sig:'',q:'',sort:'risk',hideSys:true,sel:new Set(),open:null,limit:150,running:0,total:0,done:0,t0:0,doneOnce:false,info:{admin:false},set:{whitelist:true,defender:false,entries:[]}};
 try{const sv=JSON.parse(localStorage.getItem('scn')||'{}');if(sv.sort)S.sort=sv.sort}catch(e){}
 const save=()=>{try{localStorage.setItem('scn',JSON.stringify({sort:S.sort,zoom:S.zoom}))}catch(e){}};
 S.zoom=1;try{const z=+(JSON.parse(localStorage.getItem('scn')||'{}').zoom);if(z>=.6&&z<=2)S.zoom=z}catch(e){}
@@ -434,6 +466,7 @@ async function scanCat(id,path){
     if(r.ok){
       for(const it of r.items){it._h=(it.name+' '+it.sub+' '+it.detail+' '+it.path).toLowerCase();S.items.set(it.id,it)}
       S.cats[id]={ms:r.ms,n:r.items.length,trunc:r.truncated};
+      S.gone[id]=r.gone||[];
     }else S.cats[id]={err:r.error};
   }catch(e){S.cats[id]={err:'нет связи со сканером'}}
   if(S.running)S.done++;
@@ -443,13 +476,13 @@ async function scanAll(){
   if(S.running)return;
   const ids=CATS.filter(c=>c.id!=='custom'&&(!c.opt||S.set[c.opt])).map(c=>c.id);
   S.running=1;S.total=ids.length;S.done=0;S.t0=performance.now();
-  S.items.clear();S.sel.clear();S.cats={};closeDrawer();
+  S.items.clear();S.sel.clear();S.cats={};S.gone={};closeDrawer();
   ids.forEach(i=>S.cats[i]={busy:1});
   draw();
   const q=[...ids];
   const worker=async()=>{while(q.length)await scanCat(q.shift())};
   await Promise.all([worker(),worker(),worker(),worker()]);
-  S.running=0;S.doneOnce=true;S.elapsed=((performance.now()-S.t0)/1000).toFixed(1);
+  S.running=0;S.doneOnce=true;S.scanAt=new Date();S.elapsed=((performance.now()-S.t0)/1000).toFixed(1);
   draw();
   const f=[...S.items.values()].filter(i=>!i.ack&&(i.level==='danger'||i.level==='warn')).length;
   toast(f?`Анализ завершён за ${S.elapsed} с · требуют внимания: ${f}`:`Анализ завершён за ${S.elapsed} с · подозрительного не найдено`);
@@ -489,7 +522,7 @@ function drawNav(){
   for(const i of S.items.values()){if(i.ack)continue;total[i.cat]=(total[i.cat]||0)+1;const e=eff(i);if(e==='danger'||e==='warn'){const f=flagged[i.cat]||(flagged[i.cat]={danger:0,warn:0});f[e]++}}
   const live=[...S.items.values()].filter(i=>!i.ack),arch=S.items.size-live.length;
   const all=counts(live);
-  let h=btn('all','Обзор',ic.all,all.danger?['danger',all.danger]:all.warn?['warn',all.warn]:null,live.length);
+  let h=btn('home','Главная',ic.shield,all.danger?['danger',all.danger]:all.warn?['warn',all.warn]:null,null)+btn('all','Все находки',ic.all,all.danger?['danger',all.danger]:all.warn?['warn',all.warn]:null,live.length);
   const af={danger:0,warn:0};let an=0;
   for(const i of S.items.values())if(AUTO.has(i.cat)&&!i.ack){an++;const e=eff(i);if(e==='danger')af.danger++;else if(e==='warn')af.warn++}
   h+=btn('autostart','Автозагрузка',ic.boot,af.danger?['danger',af.danger]:af.warn?['warn',af.warn]:null,S.doneOnce?an:null);
@@ -523,6 +556,7 @@ function drawHead(){
   $('#defMan').style.display=S.view==='defender'&&S.set.defender?'':'none';
   $('#hostAdd').style.display=S.view==='hosts'?'':'none';
   $('#places').style.display=(S.view==='all'||S.view==='autostart')&&S.items.size?'flex':'none';
+  document.querySelector('.tools').style.display=S.view==='home'?'none':'';
   const sb=$('#scanBtn');
   sb.disabled=!!S.running;
   $('#scanLbl').textContent=S.running?`Анализ… ${S.done}/${S.total}`:(S.doneOnce?'Анализировать снова':'Быстрый анализ');
@@ -530,7 +564,7 @@ function drawHead(){
   $('#scanBar').style.width=S.running?(S.done/S.total*100)+'%':'0';
 }
 function drawStrip(){
-  if(S.view==='journal'||S.view==='quarantine'){$('#strip').innerHTML='';$('#verdict').innerHTML='';$('#ackAll').style.display='none';$('#places').style.display='none';return}
+  if(S.view==='journal'||S.view==='quarantine'||S.view==='home'){$('#strip').innerHTML='';$('#verdict').innerHTML='';$('#ackAll').style.display='none';$('#places').style.display='none';return}
   const c=counts(scope());
   $('#strip').innerHTML=(S.view==='archive'?[]:['danger','warn','note','ok']).map(k=>`<button class="stat ${k} ${S.lv[k]?'':'off'} ${c[k]?'':'zero'}" data-lv="${k}"><span class="n">${c[k]}</span><span class="t"><i></i>${LV[k]}</span></button>`).join('');
   const all=c, here=S.view==='all'?'':' в этом разделе';
@@ -582,6 +616,7 @@ function row(i){
 }
 function drawList(){
   const L=$('#list');
+  if(S.view==='home'){drawHome();return}
   if(S.view==='journal'){drawJournal();return}
   if(S.view==='quarantine'){drawQuarantine();return}
   if(S.running&&!S.items.size){L.innerHTML='<div class="skel"></div>'.repeat(9);return}
@@ -632,7 +667,7 @@ async function qAct(file,op){
   toast(op==='restore'?'Файл возвращён на место':op==='delete'?'Удалено навсегда':'Карантин очищен');
   loadQuarantine();
 }
-const JK={found:['Находка','bad'],ack:['Архив',''],trust:['Белый список','good'],action:['Действие','mid'],error:['Ошибка','bad'],defender:['Защитник','good'],start:['Запуск','']};
+const JK={gone:['Пропало',''],undo:['Отмена',''],found:['Находка','bad'],ack:['Архив',''],trust:['Белый список','good'],action:['Действие','mid'],error:['Ошибка','bad'],defender:['Защитник','good'],start:['Запуск','']};
 let JR=null;
 async function loadJournal(){
   JR=null;drawList();
@@ -651,7 +686,7 @@ function drawJournal(){
     const d=e.t.slice(0,10);
     if(d!==day){day=d;h+=`<div class="grp" style="padding:14px 4px 4px">${d===new Date().toLocaleDateString('sv')?'Сегодня':d}</div>`}
     const k=JK[e.k]||[e.k,''];
-    h+=`<div class="row" style="cursor:default;display:flex;align-items:center;gap:14px"><span class="pth" style="flex:none;margin:0">${e.t.slice(11,19)}</span><span class="tag ${k[1]}" style="flex:none;min-width:92px;text-align:center">${k[0]}</span><div style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(e.x)}</div></div>`;
+    h+=`<div class="row" style="cursor:default;display:flex;align-items:center;gap:14px"><span class="pth" style="flex:none;margin:0">${e.t.slice(11,19)}</span><span class="tag ${k[1]}" style="flex:none;min-width:92px;text-align:center">${k[0]}</span><div style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(e.x)}</div>${e.u?`<button class="btn" data-undo="${esc(e.u)}">Отменить</button>`:e.done?'<span class="tag">отменено</span>':''}</div>`;
   }
   L.innerHTML=h;
 }
@@ -697,6 +732,7 @@ function drawDrawer(){
     ${(i.level==='danger'||i.level==='warn'||i.level==='note')&&!i.wl?(i.ack?`<button class="btn" id="dUnack">${ic.ok}Вернуть из архива</button>`:`<button class="btn ${i.cat==='defender'?'primary':''}" id="dAck">${ic.ok}В архив (прочитано)</button>`):''}
     ${S.set.whitelist&&i.cat!=='defender'?(i.wl?`<button class="btn" id="dUntrust">${ic.star}Убрать из белого списка</button>`:`<button class="btn" id="dTrust">${ic.star}Доверять</button>`):''}
     ${S.set.defender&&(i.full||i.path)?`<button class="btn" id="dDef">${ic.shield}Проверить Защитником</button>`:''}
+    ${['regdel','taskdel','svcdel'].includes(i.action)&&i.path&&i.sig!=='system'&&i.sig!=='missing'?`<button class="btn danger" id="dBoth">${ic.trash}Удалить запись и файл</button>`:''}
     ${(i.path||i.full)&&!['processes','services','network','hosts','defender'].includes(i.cat)&&i.sig!=='system'&&i.sig!=='missing'?`<button class="btn danger" id="dPurge">${ic.trash}Удалить файл сразу</button>`:''}
     ${i.cat==='hosts'?`<button class="btn" id="dHEdit">Изменить запись</button><button class="btn danger" id="dHDel">${ic.trash}Удалить запись</button>`:''}
     ${act?`<button class="btn ${i.level==='danger'||i.level==='warn'?'danger':''}" id="dAct">${ic.trash}${act[0]}</button>`:''}
@@ -794,6 +830,7 @@ $('#drawer').onclick=async e=>{
   else if(e.target.closest('#dReveal')){const r=await api('/api/reveal?id='+i.id,{method:'POST'});if(!r.ok)toast(r.error,1)}
   else if(e.target.closest('#dAct'))confirmRemove([i.id]);
   else if(e.target.closest('#dPurge'))purgeFile(i);
+  else if(e.target.closest('#dBoth'))removeBoth(i);
   else if(e.target.closest('#dHEdit'))openHostEdit(i);
   else if(e.target.closest('#dHDel'))hostDelete(i);
   else if(e.target.closest('#dAck'))ackItems([i.id],true);
@@ -996,6 +1033,97 @@ function openHostEdit(i){
   $('#hSave').onclick=save;
   $('#mbox').querySelectorAll('input').forEach(x=>x.onkeydown=e=>{if(e.key==='Enter')save()});
 }
+async function removeBoth(i){
+  const sep=String.fromCharCode(10)+String.fromCharCode(10);
+  if(!confirm(['Удалить запись и сам файл?',i.name+' — '+(i.detail||''),i.path,'Запись будет убрана из системы, а файл удалён навсегда (без карантина).'].join(sep)))return;
+  const r=await api('/api/remove',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'mode=both&ids='+i.id}).catch(()=>({results:[{ok:false,error:'нет связи со сканером'}]}));
+  const x=(r.results||[])[0]||{ok:false,error:r.error||'не удалось'};
+  if(!x.ok){toast(x.error||'не удалось удалить',true);return}
+  S.items.delete(i.id);S.sel.delete(i.id);closeDrawer();draw();
+  x.warn?toast(x.warn,true):toast('Запись и файл удалены');
+}
+function homeIssues(){return[...S.items.values()].filter(i=>!i.ack&&!i.wl&&(i.level==='danger'||i.level==='warn')).sort((a,b)=>b.risk-a.risk||a.name.localeCompare(b.name,'ru'))}
+function recommend(i){
+  if(i.cat==='defender')return{l:'Прочитано — убрать в архив',k:'ack'};
+  if(i.action==='quarantine')return{l:'В карантин',k:'rm'};
+  if(['regdel','taskdel','svcdel'].includes(i.action))return i.path&&i.sig!=='system'&&i.sig!=='missing'?{l:'Удалить запись и файл',k:'both'}:{l:'Удалить запись',k:'rm'};
+  if(i.action==='kill')return{l:'Завершить процесс',k:'rm'};
+  return null;
+}
+function drawHome(){
+  const L=$('#list');
+  const all=[...S.items.values()].filter(i=>!i.ack);
+  const c=counts(all),arch=S.items.size-all.length;
+  const iss=homeIssues();
+  let hero;
+  if(S.running)hero=`<div class="hero idle"><div class="hi"><span class="spinner"></span></div><div><h2>Проверяю компьютер…</h2><p>Готово ${S.done} из ${S.total} разделов. Результаты появятся здесь сами.</p></div></div>`;
+  else if(!S.doneOnce)hero=`<div class="hero idle"><div class="hi">${ic.shield}</div><div><h2>Проверьте компьютер</h2><p>Нажмите кнопку — за несколько секунд я покажу, есть ли угрозы и что с ними делать.</p></div><div class="hb"><button class="btn primary" id="hScan">Проверить сейчас</button></div></div>`;
+  else{
+    const when=S.scanAt?S.scanAt.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}):'';
+    const meta=`Проверено элементов: ${all.length+arch} за ${S.elapsed} с · ${when}`;
+    const btnScan='<div class="hb"><button class="btn" id="hScan">Проверить снова</button></div>';
+    if(c.danger)hero=`<div class="hero danger"><div class="hi">${ic.warn}</div><div><h2>Найдены угрозы: ${c.danger}</h2><p>${meta}. Ниже — что именно и что с этим сделать.</p></div>${btnScan}</div>`;
+    else if(c.warn)hero=`<div class="hero warn"><div class="hi">${ic.warn}</div><div><h2>Нужно проверить: ${c.warn}</h2><p>${meta}. Это не обязательно вирусы: чаще всего это программы без цифровой подписи. Ниже — самые важные.</p></div>${btnScan}</div>`;
+    else hero=`<div class="hero"><div class="hi">${ic.ok}</div><div><h2>Всё в порядке</h2><p>${meta}. Ничего делать не нужно.</p></div>${btnScan}</div>`;
+  }
+  let todo='';
+  if(S.doneOnce&&!S.running&&iss.length){
+    const top=iss.slice(0,5);
+    todo=`<div class="hsec"><h3>Что нужно сделать <small>${iss.length>5?`показаны 5 самых важных из ${iss.length}`:`${iss.length}`}</small></h3>`+top.map(i=>{
+      const rec=recommend(i),cat=CAT[i.cat];
+      const why=(i.reasons&&i.reasons[0])||'Элемент выглядит необычно';
+      const extra=i.cat==='defender'?'Защитник Windows уже изолировал эту угрозу. Достаточно отметить её прочитанной.':'';
+      return `<div class="issue ${i.level}" data-id="${i.id}"><div class="it"><span class="lvl ${i.level}">${LV[i.level]}</span><b>${esc(i.name)}</b><span class="where">${esc(cat?cat.n:i.cat)}</span></div>
+       <div class="why">${esc(extra||why)}</div><div class="pth" title="${esc(i.path||i.detail)}">${esc(i.path||i.detail)}</div>
+       <div class="ia">${rec?`<button class="btn ${rec.k==='ack'?'primary':'danger'}" data-h="${rec.k}">${rec.l}</button>`:''}${S.set.whitelist&&i.cat!=='defender'?'<button class="btn" data-h="trust">Это безопасно</button>':''}${rec&&rec.k!=='ack'?'<button class="btn ghost" data-h="ack">В архив</button>':''}<button class="btn ghost" data-h="more">Подробнее</button></div></div>`;
+    }).join('')+(iss.length>5?'<button class="btn" id="hAll">Показать все ('+iss.length+')</button>':'')+'</div>';
+  }else if(S.doneOnce&&!S.running)todo='<div class="hsec"><h3>Что нужно сделать</h3><div class="chg"><div>Ничего. Подозрительных элементов нет — можно закрывать сканер.</div></div></div>';
+  // что изменилось с прошлого анализа
+  let chg='';
+  if(S.doneOnce&&!S.running){
+    const fresh=all.filter(i=>i.isnew),gone=Object.values(S.gone).flat();
+    const rows=fresh.slice(0,6).map(i=>`<div><span class="k new">Новое</span><span>${esc(i.name)} <span style="color:var(--faint)">${esc((CAT[i.cat]||{n:i.cat}).n)}</span></span></div>`).concat(gone.slice(0,6).map(x=>`<div><span class="k gone">Пропало</span><span>${esc(x)}</span></div>`));
+    chg=`<div class="hsec"><h3>Что изменилось с прошлого анализа <small>новых: ${fresh.length} · пропало: ${gone.length}</small></h3><div class="chg">${rows.length?rows.join(''):'<div>Изменений нет.</div>'}</div></div>`;
+  }
+  // плитки разделов
+  const tile=(v,n,st,sub)=>`<button class="tile ${st||''}" data-go="${v}"><b><i></i>${n}</b><span>${sub}</span></button>`;
+  const stat=f=>{const a=all.filter(f),d=a.filter(i=>i.level==='danger').length,w=a.filter(i=>i.level==='warn').length;return{st:d?'danger':w?'warn':'',sub:d?`опасно: ${d}`:w?`подозрительно: ${w}`:`элементов: ${a.length}`}};
+  let tiles='';
+  if(S.doneOnce){
+    const mk=(v,n,f)=>{const x=stat(f);return tile(v,n,x.st,x.sub)};
+    tiles=mk('autostart','Автозагрузка',i=>AUTO.has(i.cat))+mk('services','Службы',i=>i.cat==='services')+mk('processes','Процессы',i=>i.cat==='processes')+mk('network','Сеть',i=>i.cat==='network')+mk('hosts','Файл hosts',i=>i.cat==='hosts')+mk('files','Файлы и папки',i=>['files','temp','roaming','programdata'].includes(i.cat));
+    if(S.set.defender)tiles+=mk('defender','Защитник Windows',i=>i.cat==='defender');
+    tiles+=tile('archive','Архив','',`прочитано: ${arch}`)+tile('quarantine','Карантин','','удалённые файлы')+tile('journal','Журнал','','что и когда было');
+  }
+  L.innerHTML=`<div class="home">${hero}${todo}${chg}${tiles?`<div class="hsec"><h3>Разделы</h3><div class="tiles">${tiles}</div></div>`:''}</div>`;
+}
+$('#list').addEventListener('click',async e=>{
+  if(S.view==='home'){
+    const g=e.target.closest('[data-go]');if(g){go(g.dataset.go);return}
+    if(e.target.closest('#hScan')){scanAll();return}
+    if(e.target.closest('#hAll')){go('all');S.lv={danger:1,warn:1,note:0,ok:0,ack:0};draw();return}
+    const b=e.target.closest('[data-h]'),card=e.target.closest('.issue');
+    if(b&&card){
+      const i=S.items.get(+card.dataset.id);if(!i)return;
+      const k=b.dataset.h;
+      if(k==='more')openDrawer(i.id);
+      else if(k==='ack')ackItems([i.id],true);
+      else if(k==='trust')trust([i.id],true);
+      else if(k==='rm')confirmRemove([i.id]);
+      else if(k==='both')removeBoth(i);
+    }
+    return;
+  }
+  const u=e.target.closest('[data-undo]');
+  if(u&&S.view==='journal'){
+    if(!confirm('Отменить это действие?'))return;
+    const r=await api('/api/undo',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'token='+encodeURIComponent(u.dataset.undo)}).catch(()=>({ok:false,error:'нет связи со сканером'}));
+    if(r.ok===false){toast(r.error||'не удалось отменить',true);return}
+    if(r.items)applyItems(r.items);
+    toast('Действие отменено. Чтобы увидеть изменения в списках, запустите проверку снова.');
+    loadJournal();
+  }
+});
 async function purgeFile(i){
   const p=i.full||i.path;
   if(!confirm(['Удалить файл навсегда?',p||i.path,'Он не попадёт в карантин и не будет восстановлен. Записи автозапуска, ведущие на него, останутся — удали их отдельно.'].join(String.fromCharCode(10)+String.fromCharCode(10))))return;

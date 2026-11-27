@@ -362,11 +362,11 @@ static string nowStamp() {
 }
 // журнал событий: время, тип, описание (journal.log рядом с exe)
 static std::mutex g_jMx;
-static void jlog(const string& kind, const string& text) {
+static void jlog(const string& kind, const string& text, const string& token = "") {
     std::lock_guard<std::mutex> lk(g_jMx);
     string t = text;
     for (auto& c : t) if (c == '\t' || c == '\n' || c == '\r') c = ' ';
-    string line = nowStamp() + "\t" + kind + "\t" + t + "\n";
+    string line = nowStamp() + "\t" + kind + "\t" + t + (token.empty() ? "" : "\t" + token) + "\n";
     FILE* f = _wfopen((dataFile(L"journal.log")).c_str(), L"ab");
     if (!f) return;
     fwrite(line.data(), 1, line.size(), f);
@@ -382,15 +382,26 @@ static string journalJson() {
         p = e == string::npos ? a.size() : e + 1;
         if (!ln.empty()) lines.push_back(ln);
     }
+    // разбор строк: время, тип, текст, [токен отмены]; отменённым считается последнее действие с таким токеном
+    struct Ev { string t, k, x, u; bool done = false; };
+    vector<Ev> ev; map<string, size_t> lastByTok;
+    for (auto& ln : lines) {
+        size_t t1 = ln.find('\t'), t2 = t1 == string::npos ? t1 : ln.find('\t', t1 + 1);
+        if (t2 == string::npos) continue;
+        Ev e; e.t = ln.substr(0, t1); e.k = ln.substr(t1 + 1, t2 - t1 - 1);
+        size_t t3 = ln.find('\t', t2 + 1);
+        e.x = ln.substr(t2 + 1, t3 == string::npos ? string::npos : t3 - t2 - 1);
+        if (t3 != string::npos) e.u = ln.substr(t3 + 1);
+        if (e.k == "undo") { auto f = lastByTok.find(e.u); if (f != lastByTok.end()) ev[f->second].done = true; e.u.clear(); }
+        else if (!e.u.empty()) lastByTok[e.u] = ev.size();
+        ev.push_back(std::move(e));
+    }
     string o = "{\"events\":[";
     int n = 0;
-    for (size_t i = lines.size(); i-- > 0 && n < 500;) {
-        size_t t1 = lines[i].find('\t'), t2 = t1 == string::npos ? t1 : lines[i].find('\t', t1 + 1);
-        if (t2 == string::npos) continue;
+    for (size_t i = ev.size(); i-- > 0 && n < 500; n++) {
         if (n) o += ",";
-        o += "{\"t\":\"" + jesc(lines[i].substr(0, t1)) + "\",\"k\":\"" + jesc(lines[i].substr(t1 + 1, t2 - t1 - 1)) +
-             "\",\"x\":\"" + jesc(lines[i].substr(t2 + 1)) + "\"}";
-        n++;
+        o += "{\"t\":\"" + jesc(ev[i].t) + "\",\"k\":\"" + jesc(ev[i].k) + "\",\"x\":\"" + jesc(ev[i].x) + "\",\"u\":\"" +
+             jesc(ev[i].done ? "" : ev[i].u) + "\",\"done\":" + (ev[i].done ? "true" : "false") + "}";
     }
     return o + "]}";
 }
@@ -404,7 +415,29 @@ static void saveSeen() {
     for (auto& e : g_seen) o += e.first + "\t" + e.second + "\n";
     writeFileStr(dataFile(L"seen.txt"), o);
 }
+static map<string, map<string, string>> g_snap;   // раздел -> (ключ -> описание) с прошлого анализа
+static void saveSnap() {
+    string o;
+    for (auto& c : g_snap) for (auto& e : c.second) {
+        string l = e.second;
+        for (auto& ch : l) if (ch == '\t' || ch == '\n' || ch == '\r') ch = ' ';
+        o += c.first + "\t" + e.first + "\t" + l + "\n";
+    }
+    writeFileStr(dataFile(L"snapshot.txt"), o);
+}
 static void loadCfg() {
+    {
+        string a = readFileStr(dataFile(L"snapshot.txt"));
+        size_t p = 0;
+        while (p < a.size()) {
+            size_t e = a.find('\n', p);
+            string line = a.substr(p, e == string::npos ? string::npos : e - p);
+            p = e == string::npos ? a.size() : e + 1;
+            size_t t1 = line.find('\t'), t2 = t1 == string::npos ? t1 : line.find('\t', t1 + 1);
+            if (t2 == string::npos) continue;
+            g_snap[line.substr(0, t1)][line.substr(t1 + 1, t2 - t1 - 1)] = line.substr(t2 + 1);
+        }
+    }
     {
         string a = readFileStr(dataFile(L"seen.txt"));
         size_t p = 0;
@@ -683,7 +716,7 @@ static void analyzeItem(WItem& it) {
     it.risk = std::max(0, std::min(100, it.risk));
 }
 
-static void finishCat(vector<WItem>& v, const string& cat) {
+static void finishCat(vector<WItem>& v, const string& cat, vector<string>* goneOut = nullptr) {
     vector<wstring> need;
     for (auto& it : v) {
         it.cat = cat;
@@ -697,7 +730,7 @@ static void finishCat(vector<WItem>& v, const string& cat) {
     applyWhitelist(v);
     applyAck(v);
     if (cat != "processes" && cat != "network" && cat != "custom") {
-        vector<string> fresh;
+        vector<string> fresh, gone;
         {
             std::lock_guard<std::mutex> lk(g_seenMx);
             bool base = g_seenCats.count(cat) > 0, changed = !base;
@@ -712,8 +745,22 @@ static void finishCat(vector<WItem>& v, const string& cat) {
             }
             g_seenCats.insert(cat);
             if (changed) saveSeen();
+            // что пропало с прошлого анализа: сравниваем со снимком этого раздела (шумные разделы не сравниваем)
+            static const set<string> noisy = {"files", "temp", "roaming", "programdata"};
+            if (!noisy.count(cat)) {
+                map<string, string> cur;
+                for (auto& it : v) cur[cat + "@" + wlKey(it)] = itemLabel(it);
+                auto prev = g_snap.find(cat);
+                if (prev != g_snap.end())
+                    for (auto& kv : prev->second)
+                        if (!cur.count(kv.first)) gone.push_back(kv.second);
+                if (cur.size() <= 4000) g_snap[cat] = std::move(cur);
+                saveSnap();
+            }
         }
         for (auto& x : fresh) jlog("found", "Новая находка: " + x);
+        for (size_t i = 0; i < gone.size() && i < 30; i++) jlog("gone", "Пропало: " + gone[i]);
+        if (goneOut) *goneOut = gone;
     }
 }
 
@@ -1314,7 +1361,8 @@ static string scanJson(const string& cat, const wstring& arg) {
     vector<WItem> v; bool trunc = false; string err;
     if (!collect(cat, arg, v, trunc, err))
         return "{\"ok\":false,\"error\":\"" + jesc(err) + "\"}";
-    finishCat(v, cat);
+    vector<string> gone;
+    finishCat(v, cat, &gone);
     for (auto& it : v) it.id = g_nextId++;
     {
         std::lock_guard<std::mutex> lk(g_storeMx);
@@ -1326,12 +1374,16 @@ static string scanJson(const string& cat, const wstring& arg) {
     string o = "{\"ok\":true,\"cat\":\"" + cat + "\",\"ms\":" + std::to_string(ms) +
                ",\"truncated\":" + (trunc ? "true" : "false") + ",\"items\":[";
     for (size_t i = 0; i < v.size(); i++) { if (i) o += ","; o += itemJson(v[i]); }
+    o += "],\"gone\":[";
+    for (size_t i = 0; i < gone.size() && i < 200; i++) { if (i) o += ","; o += "\"" + jesc(gone[i]) + "\""; }
     o += "]}";
     return o;
 }
 
 // ============================================================ действия
+static thread_local string g_qLast;   // имя файла в карантине после последнего успешного переноса
 static bool quarantineItem(const wstring& p, bool isDir, string& err) {
+    g_qLast.clear();
     if (isSysPath(lowerW(p))) { err = "защищённый системный путь"; return false; }
     if (!fileExists(p)) { err = "объект уже отсутствует"; return false; }
     wstring dir = g_exeDir + L"\\Quarantine";
@@ -1353,6 +1405,7 @@ static bool quarantineItem(const wstring& p, bool isDir, string& err) {
         err = "код ошибки " + std::to_string(GetLastError());
         return false;
     }
+    g_qLast = u8(baseName(dest));
     FILE* f = _wfopen((dest + L".origin.txt").c_str(), L"wb");
     if (f) { string o = u8(p); fwrite(o.data(), 1, o.size(), f); fclose(f); }
     return true;
@@ -1409,16 +1462,25 @@ static string removeJson(const string& idsCsv, const string& mode) {
         else if (mode == "purge") {
             wstring p = it.action == "quarantine" ? it.del.path : (!it.full.empty() ? it.full : it.exe);
             ok = purgePath(p, it.isDir, err);
-        } else ok = applyAction(it, err);
-        if (found) jlog(ok ? "action" : "error", string(ok ? (mode == "purge" ? "Файл удалён навсегда: " : "Действие «") : "Не удалось выполнить «") +
-                        (mode == "purge" ? string() : it.action + "»: ") + itemLabel(it) + (ok ? "" : " (" + err + ")"));
+        } else {
+            g_qLast.clear();
+            ok = applyAction(it, err);
+        }
+        string warn;
+        if (ok && mode == "both" && !it.exe.empty() && it.action != "quarantine") {
+            string e2;
+            if (!purgePath(it.exe, false, e2)) warn = "запись удалена, но файл не удалён: " + e2;
+        }
+        if (found) jlog(ok ? "action" : "error", string(ok ? (mode == "purge" ? "Файл удалён навсегда: " : mode == "both" ? "Запись и файл удалены: " : "Действие «") : "Не удалось выполнить «") +
+                        (mode == "purge" || mode == "both" ? string() : it.action + "»: ") + itemLabel(it) + (ok ? (warn.empty() ? "" : " (" + warn + ")") : " (" + err + ")"),
+                        ok && mode.empty() && it.action == "quarantine" && !g_qLast.empty() ? "q:" + g_qLast : "");
         if (ok) {
             std::lock_guard<std::mutex> lk(g_storeMx);
             g_store.erase(id);
         }
         if (!first) o += ",";
         first = false;
-        o += "{\"id\":" + std::to_string(id) + ",\"ok\":" + (ok ? "true" : "false") + ",\"error\":\"" + jesc(err) + "\"}";
+        o += "{\"id\":" + std::to_string(id) + ",\"ok\":" + (ok ? "true" : "false") + ",\"error\":\"" + jesc(err) + "\",\"warn\":\"" + jesc(warn) + "\"}";
     }
     return o + "]}";
 }
@@ -1476,7 +1538,7 @@ static string trustJson(const string& idsCsv, bool add, const string& keyArg) {
                 std::lock_guard<std::mutex> lc(g_cfgMx);
                 g_wl.erase(std::remove_if(g_wl.begin(), g_wl.end(), [&](const WlEntry& x) { return x.key == k; }), g_wl.end());
                 g_wl.push_back(e);
-                jlog("trust", "Добавлено в белый список: " + itemLabel(f->second));
+                jlog("trust", "Добавлено в белый список: " + itemLabel(f->second), "trust:" + k);
             }
         }
         if (!add) {
@@ -1597,7 +1659,7 @@ static string ackJson(const string& idsCsv, bool on) {
             if (!keys.count(wlKey(kv.second))) continue;
             kv.second.ack = on;
             kv.second.ackAt = on ? nowStamp() : "";
-            jlog("ack", string(on ? "В архив (прочитано): " : "Возвращено из архива: ") + itemLabel(kv.second));
+            jlog("ack", string(on ? "В архив (прочитано): " : "Возвращено из архива: ") + itemLabel(kv.second), on ? "ack:" + wlKey(kv.second) : "");
             if (!first) res += ",";
             first = false;
             res += itemJson(kv.second);
@@ -1675,7 +1737,7 @@ static string hostsChangeJson(const string& op, const string& oldLine, const str
     fwrite(out.data(), 1, out.size(), f);
     fclose(f);
     jlog("hosts", string(op == "add" ? "hosts: добавлена запись " : op == "edit" ? "hosts: изменена запись «" + oldN + "» → " : "hosts: удалена запись ") +
-                  (op == "remove" ? oldN : newN));
+                  (op == "remove" ? oldN : newN), s.empty() ? "" : "hosts:hosts-" + tag + ".bak");
     return "{\"ok\":true}";
 }
 
@@ -1764,6 +1826,43 @@ static string quarantineActJson(const string& file, const string& op) {
         return "{\"ok\":true}";
     }
     return err("неизвестное действие");
+}
+
+// ---------- отмена действия из журнала ----------
+static string undoJson(const string& token) {
+    auto err = [](const string& e) { return "{\"ok\":false,\"error\":\"" + jesc(e) + "\"}"; };
+    size_t c = token.find(':');
+    if (c == string::npos) return err("это действие нельзя отменить");
+    string kind = token.substr(0, c), arg = token.substr(c + 1);
+    string res;
+    if (kind == "q") {
+        res = quarantineActJson(arg, "restore");
+    } else if (kind == "ack") {
+        string ids;
+        {
+            std::lock_guard<std::mutex> lk(g_storeMx);
+            for (auto& kv : g_store) if (wlKey(kv.second) == arg) ids += (ids.empty() ? "" : ",") + std::to_string(kv.first);
+        }
+        if (ids.empty()) {
+            std::lock_guard<std::mutex> lc(g_cfgMx);
+            g_ack.erase(arg); g_ackLbl.erase(arg); saveAcks();
+            res = "{\"items\":[]}";
+        } else res = ackJson(ids, false);
+    } else if (kind == "trust") {
+        res = trustJson("", false, arg);
+    } else if (kind == "hosts") {
+        if (!isElevated()) return err("Нужны права администратора: запусти сканер от администратора (кнопка «Повысить»)");
+        if (arg.find_first_of("\\/:") != string::npos || arg.find("..") != string::npos || arg.compare(0, 6, "hosts-") != 0) return err("некорректное имя копии");
+        wstring bak = g_exeDir + L"\\hosts_backups\\" + toWide(arg);
+        if (!fileExists(bak)) return err("копия файла hosts не найдена");
+        wstring path = g_winOrig + L"\\System32\\drivers\\etc\\hosts";
+        if (!CopyFileW(bak.c_str(), path.c_str(), FALSE)) return err("не удалось восстановить hosts (код " + std::to_string(GetLastError()) + ")");
+        res = "{\"ok\":true}";
+    } else return err("это действие нельзя отменить");
+    if (res.find("\"ok\":false") != string::npos) return res;
+    jlog("undo", "Отменено действие", token);
+    if (res.rfind("{\"ok\":true", 0) == 0) return res;
+    return res;
 }
 
 static wstring findMpCmd() {
@@ -1966,6 +2065,9 @@ static void handleClient(SOCKET s) {
         } else if (path == "/api/ack" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, ackJson(b["ids"], b["on"] != "0"));
+        } else if (path == "/api/undo" && method == "POST") {
+            auto b = parseQuery(body);
+            reply(s, 200, JSON, undoJson(b["token"]));
         } else if (path == "/api/quarantine" && method == "GET") {
             reply(s, 200, JSON, quarantineListJson());
         } else if (path == "/api/quarantine/act" && method == "POST") {
