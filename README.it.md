@@ -24,7 +24,7 @@ Uno scanner per Windows in un solo file (senza installazione, senza cloud, senza
 - **File hosts modificabile.** Aggiungi, modifica o elimina voci con backup automatico.
 - **Cosa è cambiato dall'ultima volta.** Elementi di avvio nuovi e scomparsi, indicazione «visto per la prima volta».
 - **Privato per progettazione.** Una piccola interfaccia web solo su `127.0.0.1`, protetta da un token per ogni avvio. Nulla lascia il tuo PC.
-- **Tre lingue.** Russo, inglese e italiano, selezionabili nell'intestazione (rilevamento automatico).
+- **Tre lingue.** Russo, inglese e italiano, selezionabili nell'intestazione (inglese per impostazione predefinita).
 
 > È un assistente euristico, non un sostituto di un antivirus completo. «Sospetto» significa «vale la pena guardare», non è una condanna.
 

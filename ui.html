@@ -806,7 +806,7 @@ const I18N_T=[
 const LANGS={ru:'Русский',en:'English',it:'Italiano'};
 let LANG='';
 try{LANG=localStorage.getItem('lang')||''}catch(e){}
-if(!LANGS[LANG]){const n=((navigator.language||'en')+'').slice(0,2).toLowerCase();LANG=LANGS[n]?n:'en'}
+if(!LANGS[LANG])LANG='en'; /* язык по умолчанию — английский; выбор пользователя запоминается */
 const LI=LANG==='en'?1:LANG==='it'?2:0;
 const HAS_CYR=/[А-Яа-яЁё]/;
 const I18N_EXACT=new Map(),I18N_FRAG=[];
