@@ -200,6 +200,18 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
 .toast.bad{border-color:var(--danger)}
 @keyframes ti{from{transform:translateY(10px);opacity:0}}
 
+.dmtabs{display:flex;gap:6px;padding:4px 22px 10px}
+.dmtabs button{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--dim)}
+.dmtabs button.on{background:var(--accent-bg);border-color:var(--accent);color:var(--text)}
+.dmgrp{padding:2px 22px 10px}
+.dmgrp h4{margin:8px 0 2px;font-size:13.5px;font-weight:600}
+.dmgrp p{margin:0 0 6px;padding:0;color:var(--dim);font-size:12.5px}
+.dmgrp .mlist{margin:0 0 8px;max-height:150px}
+.dmgrp .none{color:var(--faint);font-size:13px;padding:6px 2px}
+.dmadd{display:flex;gap:8px}
+.minput{flex:1;min-width:0;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);padding:0 10px;outline:0;font-family:var(--mono);font-size:12.5px}
+.minput:focus{border-color:var(--accent)}
+.dmnote{margin:0 22px 10px;padding:8px 12px;border-radius:9px;background:var(--warn-bg);color:var(--text);font-size:13px}
 .setwrap{padding:0 8px 8px}
 .setbtn{width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);background:none;border-radius:8px;color:var(--dim)}
 .setbtn:hover{color:var(--text);border-color:var(--line2);background:var(--panel2)}
@@ -250,6 +262,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
   <main class="main">
     <header class="top">
       <div class="ttl"><h1 id="vTitle">Обзор</h1><div class="desc" id="vDesc"></div></div>
+      <button class="btn" id="defMan" style="display:none"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V6z"/></svg>Управление Защитником</button>
       <button class="iconbtn" id="menuBtn" title="Меню"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
       <div class="menu" id="menu">
         <button data-m="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>Настройки</button>
@@ -461,6 +474,7 @@ function drawHead(){
   $('#vDesc').textContent=c.h;
   $('#custom').classList.toggle('on',S.view==='custom');
   $('#hsys').classList.toggle('on',S.hideSys);
+  $('#defMan').style.display=S.view==='defender'&&S.set.defender?'':'none';
   $('#places').style.display=(S.view==='all'||S.view==='autostart')&&S.items.size?'flex':'none';
   const sb=$('#scanBtn');
   sb.disabled=!!S.running;
@@ -706,7 +720,9 @@ function renderSettings(){
    ${s.entries.length?`<div class="mlist">${s.entries.map(e=>`<div class="wl"><div>${esc(e.name)}<small>${esc(e.path||e.key.slice(2))}</small></div><button class="btn ghost" data-untrust="${esc(e.key)}">Убрать</button></div>`).join('')}</div>`:'<p>Список пуст. Открой любой элемент и нажми «Доверять».</p>'}
    <div class="shead">Windows Defender</div>
    <div class="srow"><label class="sw"><input type="checkbox" id="sDef" ${s.defender?'checked':''}></label><div class="t"><b>Доступ к Защитнику Windows</b><span>Включает раздел «Защитник Windows» (состояние защиты, исключения, найденные угрозы) и кнопку «Проверить Защитником» у файлов. Для этого сканер запускает системные PowerShell и MpCmdRun — только на чтение и проверку, ничего не удаляется и не меняется.</span></div></div>
+   ${s.defender?`<div class="srow"><div class="t"><span>Исключения Защитника и защищённые папки — просмотр, добавление, изменение, удаление.</span></div><button class="btn" id="sMan">Управление…</button></div>`:''}
   </div><div class="mf"><button class="btn primary" id="sOk">Готово</button></div>`;
+  if(s.defender)$('#sMan').onclick=()=>{closeSettings();openDefMan()};
   $('#sWl').onchange=e=>saveSet({whitelist:e.target.checked?1:0});
   $('#sDef').onchange=e=>saveSet({defender:e.target.checked?1:0});
   $('#sOk').onclick=closeSettings;
@@ -724,6 +740,74 @@ function closeSettings(){
   $('#modal').classList.remove('on');
   if(setDirty){setDirty=false;if(!S.set.defender&&CAT[S.view]?.opt)S.view='all';scanAll()}
 }
+/* ---------- управление Защитником Windows ---------- */
+const DM={
+  excl:[
+    {k:'xp',t:'Папки и файлы',d:'Защитник не проверяет эти пути.',ph:'C:\\Путь\\к\\папке или файлу'},
+    {k:'xe',t:'Расширения',d:'Файлы с этими расширениями не проверяются.',ph:'например: iso'},
+    {k:'xr',t:'Процессы',d:'Файлы, которые открывает этот процесс, не проверяются.',ph:'имя.exe или полный путь'}],
+  cfa:[
+    {k:'pf',t:'Защищённые папки',d:'Только доверенные приложения могут изменять файлы в этих папках.',ph:'C:\\Путь\\к\\папке'},
+    {k:'aa',t:'Разрешённые приложения',d:'Приложения, которым разрешено менять защищённые папки (белый список).',ph:'C:\\Путь\\к\\программе.exe'}]
+};
+const CFA_TXT={'0':'выключен','1':'включён','2':'только аудит (без блокировки)'};
+let dm=null,dmTab='excl',dmEdit=null;
+async function openDefMan(){
+  dm=null;dmEdit=null;renderDefMan();$('#modal').classList.add('on');
+  try{dm=await api('/api/defender/prefs')}catch(e){dm={ok:false,error:'нет связи со сканером'}}
+  renderDefMan();
+}
+function renderDefMan(){
+  const m=$('#mbox');
+  let body;
+  if(!dm)body='<div class="skel" style="margin:0 22px"></div><div class="skel" style="margin:6px 22px"></div>';
+  else if(!dm.ok)body=`<p>${esc(dm.error)}</p>`;
+  else{
+    const note=!dm.admin?'<div class="dmnote">Сканер запущен без прав администратора: Windows скрывает эти списки и запрещает их менять. Нажми «Повысить» слева внизу.</div>'
+      :dm.hidden?'<div class="dmnote">Windows скрыла часть списков.</div>':'';
+    const cfa=dmTab==='cfa'?`<p>Контролируемый доступ к папкам: <b>${esc(CFA_TXT[dm.cfa]||dm.cfa)}</b>${dm.cfa==='0'?'. Пока он выключен, защищённые папки не действуют — включается в «Безопасность Windows».':'.'}</p>`:'';
+    body=note+cfa+DM[dmTab].map(g=>{
+      const list=dm[g.k]||[];
+      const editing=dmEdit&&dmEdit.k===g.k;
+      return `<div class="dmgrp"><h4>${g.t}</h4><p>${g.d}</p>
+        ${list.length?`<div class="mlist">${list.map(v=>`<div class="wl"><div style="font-family:var(--mono);font-size:12.5px">${esc(v)}</div><button class="btn ghost" data-a="edit" data-k="${g.k}" data-v="${esc(v)}">Изменить</button><button class="btn ghost" data-a="del" data-k="${g.k}" data-v="${esc(v)}">Удалить</button></div>`).join('')}</div>`:'<div class="none">Список пуст</div>'}
+        <div class="dmadd"><input class="minput" data-in="${g.k}" placeholder="${esc(g.ph)}" spellcheck="false" value="${editing?esc(dmEdit.old):''}"><button class="btn primary" data-a="add" data-k="${g.k}">${editing?'Сохранить':'Добавить'}</button></div></div>`;
+    }).join('');
+  }
+  m.innerHTML=`<h3>Управление Защитником Windows</h3>
+    <div class="dmtabs"><button data-tab="excl" class="${dmTab==='excl'?'on':''}">Исключения</button><button data-tab="cfa" class="${dmTab==='cfa'?'on':''}">Защищённые папки</button></div>
+    <div class="mbody">${body}</div><div class="mf"><button class="btn primary" id="dmOk">Готово</button></div>`;
+  $('#dmOk').onclick=()=>{$('#modal').classList.remove('on');if(S.view==='defender')scanCat('defender')};
+  m.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{dmTab=b.dataset.tab;dmEdit=null;renderDefMan()});
+  m.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>dmAct(b.dataset.a,b.dataset.k,b.dataset.v));
+  m.querySelectorAll('[data-in]').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')m.querySelector(`[data-a=add][data-k=${i.dataset.in}]`).click()});
+}
+async function dmChange(kind,op,value){
+  const r=await api('/api/defender/change',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'kind='+kind+'&op='+op+'&value='+encodeURIComponent(value)}).catch(()=>({ok:false,error:'нет связи со сканером'}));
+  if(!r.ok)toast(r.error,1);
+  return r.ok;
+}
+async function dmAct(a,k,v){
+  const reload=async()=>{dm=await api('/api/defender/prefs');renderDefMan()};
+  if(a==='edit'){dmEdit={k,old:v};renderDefMan();const i=$('#mbox').querySelector(`[data-in=${k}]`);i&&i.focus();return}
+  if(a==='del'){
+    if(!confirm('Убрать из списка?\n\n'+v))return;
+    if(await dmChange(k,'remove',v)){toast('Удалено');dmEdit=null;await reload()}
+    return;
+  }
+  const inp=$('#mbox').querySelector(`[data-in=${k}]`),val=inp.value.trim();
+  if(!val){inp.focus();return}
+  if(k==='xp'||k==='xe'||k==='xr'){
+    if(!confirm('Добавить в исключения Защитника?\n\n'+val+'\n\nЗащитник перестанет проверять это. Вредоносные программы часто прячутся именно так — добавляй только то, чему доверяешь.'))return;
+  }
+  const edit=dmEdit&&dmEdit.k===k?dmEdit.old:null;
+  if(edit===val){dmEdit=null;renderDefMan();return}
+  if(await dmChange(k,'add',val)){
+    if(edit&&!await dmChange(k,'remove',edit))toast('Новое значение добавлено, но старое удалить не удалось',1);
+    toast(edit?'Изменено':'Добавлено');dmEdit=null;await reload();
+  }
+}
+$('#defMan').onclick=openDefMan;
 async function elevate(){
   if(S.info.admin){toast('Уже запущено от администратора');return}
   const r=await api('/api/elevate',{method:'POST'}).catch(()=>({ok:true}));
@@ -734,7 +818,7 @@ async function elevate(){
 $('#foot').onclick=e=>{if(e.target.tagName==='A')elevate()};
 function mod(e){return e.ctrlKey||e.metaKey||e.altKey}
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){if($('#modal').classList.contains('on'))closeSettings();else closeDrawer();return}
+  if(e.key==='Escape'){if($('#modal').classList.contains('on')){dmEdit=null;closeSettings()}else closeDrawer();return}
   if(e.key==='/'&&!mod(e)&&document.activeElement.tagName!=='INPUT'){e.preventDefault();$('#q').focus()}
 });
 

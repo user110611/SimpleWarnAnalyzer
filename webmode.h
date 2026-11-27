@@ -1312,6 +1312,77 @@ static string trustJson(const string& idsCsv, bool add, const string& keyArg) {
     return res + "]}";
 }
 
+// ---------- управление настройками Защитника: исключения и контролируемый доступ к папкам ----------
+static string jarr(const vector<wstring>& v) {
+    string o = "[";
+    for (size_t i = 0; i < v.size(); i++) { if (i) o += ","; o += jstr(v[i]); }
+    return o + "]";
+}
+
+static string defPrefsJson() {
+    if (!g_defOn) return "{\"ok\":false,\"error\":\"Доступ к Защитнику Windows выключен в настройках\"}";
+    const wstring script =
+        L"[Console]::OutputEncoding=[Text.Encoding]::UTF8;$ErrorActionPreference='SilentlyContinue';"
+        L"$p=Get-MpPreference;if(-not $p){'ERR|nodata'}else{"
+        L"'CFA|'+$p.EnableControlledFolderAccess;"
+        L"foreach($x in $p.ExclusionPath){if($x){'XP|'+$x}};foreach($x in $p.ExclusionExtension){if($x){'XE|'+$x}};"
+        L"foreach($x in $p.ExclusionProcess){if($x){'XR|'+$x}};"
+        L"foreach($x in $p.ControlledFolderAccessProtectedFolders){if($x){'PF|'+$x}};"
+        L"foreach($x in $p.ControlledFolderAccessAllowedApplications){if($x){'AA|'+$x}}}";
+    string o = runPs(script);
+    map<string, vector<wstring>> m;
+    string cfa = "?"; bool hidden = false, nodata = false;
+    size_t pos = 0;
+    while (pos < o.size()) {
+        size_t e = o.find('\n', pos);
+        string ln = o.substr(pos, e == string::npos ? string::npos : e - pos);
+        pos = e == string::npos ? o.size() : e + 1;
+        while (!ln.empty() && (ln.back() == '\r' || ln.back() == ' ')) ln.pop_back();
+        size_t bar = ln.find('|');
+        if (bar == string::npos) continue;
+        string k = ln.substr(0, bar), v = ln.substr(bar + 1);
+        if (k == "ERR") nodata = true;
+        else if (k == "CFA") cfa = v;
+        else if (v.rfind("N/A", 0) == 0) hidden = true;
+        else m[k].push_back(toWide(v));
+    }
+    if (nodata) return "{\"ok\":false,\"error\":\"Защитник Windows недоступен или отключён политикой\"}";
+    return string("{\"ok\":true,\"admin\":") + (isElevated() ? "true" : "false") + ",\"hidden\":" + (hidden ? "true" : "false") +
+           ",\"cfa\":\"" + jesc(cfa) + "\",\"xp\":" + jarr(m["XP"]) + ",\"xe\":" + jarr(m["XE"]) + ",\"xr\":" + jarr(m["XR"]) +
+           ",\"pf\":" + jarr(m["PF"]) + ",\"aa\":" + jarr(m["AA"]) + "}";
+}
+
+static string defChangeJson(const string& kind, const string& op, const wstring& valIn) {
+    auto err = [](const string& e) { return "{\"ok\":false,\"error\":\"" + jesc(e) + "\"}"; };
+    if (!g_defOn) return err("Доступ к Защитнику Windows выключен в настройках");
+    if (!isElevated()) return err("Нужны права администратора: запусти сканер от администратора (кнопка «Повысить»)");
+    const wchar_t* param = kind == "xp" ? L"ExclusionPath" : kind == "xe" ? L"ExclusionExtension" :
+                           kind == "xr" ? L"ExclusionProcess" : kind == "pf" ? L"ControlledFolderAccessProtectedFolders" :
+                           kind == "aa" ? L"ControlledFolderAccessAllowedApplications" : nullptr;
+    if (!param) return err("неизвестный список");
+    if (op != "add" && op != "remove") return err("неизвестное действие");
+    wstring v = trimW(valIn);
+    if (kind == "xe") {                              // расширение: без точки и звёздочки
+        while (!v.empty() && (v[0] == L'.' || v[0] == L'*')) v.erase(0, 1);
+        if (v.empty() || v.size() > 15) return err("укажи расширение, например exe");
+        for (wchar_t c : v) if (!std::iswalnum(c) && c != L'_' && c != L'-') return err("в расширении допустимы только буквы и цифры");
+    }
+    if (v.empty() || v.size() > 500) return err("пустое или слишком длинное значение");
+    for (wchar_t c : v)
+        if (c < 0x20 || c == 0x2018 || c == 0x2019 || c == 0x201A || c == 0x201B)
+            return err("в значении есть недопустимые символы");
+    wstring q;
+    for (wchar_t c : v) { if (c == L'\'') q += L"''"; else q += c; }
+    wstring script = L"[Console]::OutputEncoding=[Text.Encoding]::UTF8;try{" + wstring(op == "add" ? L"Add" : L"Remove") +
+                     L"-MpPreference -" + param + L" @('" + q + L"') -ErrorAction Stop;'OK'}catch{'ERR|'+$_.Exception.Message}";
+    string o = runPs(script);
+    if (o.rfind("OK", 0) == 0 || o.find("\nOK") != string::npos) return "{\"ok\":true}";
+    size_t p = o.find("ERR|");
+    string msg = p == string::npos ? "Защитник не принял изменение (возможно, включена защита от подделки)" : o.substr(p + 4);
+    while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r')) msg.pop_back();
+    return err(msg);
+}
+
 static wstring findMpCmd() {
     wstring base = expand(L"%ProgramData%\\Microsoft\\Windows Defender\\Platform"), best;
     WIN32_FIND_DATAW fd;
@@ -1509,6 +1580,11 @@ static void handleClient(SOCKET s) {
         } else if (path == "/api/untrust" && method == "POST") {
             auto b = parseQuery(body);
             reply(s, 200, JSON, trustJson(b["ids"], false, b["key"]));
+        } else if (path == "/api/defender/prefs" && method == "GET") {
+            reply(s, 200, JSON, defPrefsJson());
+        } else if (path == "/api/defender/change" && method == "POST") {
+            auto b = parseQuery(body);
+            reply(s, 200, JSON, defChangeJson(b["kind"], b["op"], toWide(b["value"])));
         } else if (path == "/api/defscan" && method == "POST") {
             reply(s, 200, JSON, defScanJson(atol(q["id"].c_str())));
         } else if (path == "/api/elevate" && method == "POST") {
