@@ -1,36 +1,47 @@
 # SimpleWarnAnalyzer
-Helps analyze the computer's most vulnerable areas
 
-(for now is available only RU language version)
+**English** · [Русский](README.ru.md) · [Italiano](README.it.md)
 
-## Что умеет
+Helps analyze the computer's most vulnerable areas.
 
-Сканер Windows, который за несколько секунд собирает места, куда обычно закрепляются вирусы, и подсвечивает подозрительное:
+A single-file Windows scanner (no installer, no cloud, no telemetry) that collects, in a few seconds, every place malware likes to hide and tells you **what to do about it in plain language**.
 
-- **Автозагрузка:** Run / RunOnce (пользователь, система, WOW64, политики), Winlogon, папки автозагрузки (с разбором ярлыков), планировщик заданий, Active Setup, IFEO (перехват запуска), AppInit_DLLs.
-- **Система:** службы, процессы (с проверкой подмены системных имён), сетевые соединения, файл hosts.
-- **Файлы:** глубокий поиск исполняемых файлов и скриптов в Temp, AppData, ProgramData, Загрузках, Рабочем столе и Public; любая своя папка.
-- **Оценка риска 0–100** по подписи (в т. ч. каталожной), расположению, подозрительным командам и другим признакам. С объяснением, почему элемент подозрителен.
-- **Белый список** (с контрольной суммой файла) и необязательный **доступ к Защитнику Windows** — включаются в настройках.
-- Действия: файл в карантин, удалить запись автозапуска / службу / задачу, завершить процесс. Всё с подтверждением.
+## Why it is different
 
-## Запуск
+- **One screen, one answer.** The Home page says "All good" or "Needs checking", lists the 5 most important issues and puts the recommended action under each one. No expert knowledge needed.
+- **Explains instead of scaring.** Every finding comes with the reasons behind its 0–100 risk score (unsigned file, runs from Temp, hidden window, tampered Winlogon…). Signed Microsoft files and your whitelist are not flagged.
+- **Everything where malware persists.** Run / RunOnce (user, system, WOW64, policies), Winlogon, Startup folders, Task Scheduler, Active Setup, IFEO, AppInit_DLLs, services, processes, network connections, hosts file, and a deep file search in Temp / AppData / ProgramData / Downloads.
+- **Reversible.** Quarantine with one-click restore, a journal of every action with timestamps and an **Undo** button, a safety copy of `hosts` before each edit.
+- **Windows Defender built in (optional).** See Defender threats and status, mark them as read, scan a file, and manage exclusions and protected folders.
+- **Editable hosts file.** Add, edit or remove entries safely, with automatic backups.
+- **What changed since last time.** New and disappeared startup items between scans, "first seen" timestamps.
+- **Private by design.** Runs a tiny web UI on `127.0.0.1` only, protected by a per-run token. Nothing leaves your PC.
+- **Three languages.** Russian, English and Italian, switchable in the header (auto-detected on first run).
 
-Веб-интерфейс по умолчанию: запусти `SySscaner.exe` — в браузере откроется `http://127.0.0.1:8787`.
-Сервер слушает только `127.0.0.1` и требует токен. Для полного доступа запусти от администратора.
+> It is a heuristic helper, not a replacement for a full antivirus. Treat "Suspicious" as "worth a look", not as a verdict.
+
+## Run
+
+Download `SySscaner.exe` from the [Releases](../../releases) page and start it — your browser opens `http://127.0.0.1:8787`. For full access run it as administrator.
 
 ```
-SySscaner.exe            # веб-интерфейс
-SySscaner.exe --console  # старое консольное меню
+SySscaner.exe                 # web interface
+SySscaner.exe --console       # legacy console menu
 SySscaner.exe --no-open --port 8787
 ```
 
-## Сборка
+Your data (archive, journal, whitelist, settings) lives in the `Данные` ("Data") folder next to the exe.
 
-Нужен g++ (MSYS2 / MinGW-w64):
+## Build
+
+You need g++ (MSYS2 / MinGW-w64):
 
 ```
-build.bat            # или: powershell -File build.ps1 [-Out имя.exe]
+build.bat                     # or: powershell -File build.ps1 [-Out name.exe]
 ```
 
-`ui.html` встраивается в exe при сборке. Если рядом с exe лежит `ui.html`, при запуске используется он — удобно для правки интерфейса без пересборки.
+`ui.html` is embedded into the exe at build time. If `ui.html` lies next to the exe it is used instead — handy for editing the UI without rebuilding.
+
+## License
+
+See [LICENSE](LICENSE).
