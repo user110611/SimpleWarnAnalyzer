@@ -301,7 +301,7 @@ svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:
         <option value="date">По дате</option>
       </select>
       <button class="btn chip" id="hsys" title="Скрыть записи Windows и Microsoft">Скрыть системные</button>
-      <button class="btn" id="ackAll" style="display:none" title="Отметить все видимые опасности прочитанными">Прочитать все</button>
+      <button class="btn" id="ackAll" style="display:none" title="Отметить все опасности прочитанными и убрать в архив">В архив все</button>
       <button class="btn ghost" id="reset">Сбросить</button>
     </div>
 
@@ -381,7 +381,8 @@ const SIG={signed:['Подписано','good'],unsigned:['Без подписи
 const AUTO=new Set(['run_user','run_sys','run_wow','runonce_user','runonce_sys','policies_run','winlogon','startup_user','startup_all','tasks','activesetup','ifeo','appinit']);
 const VIEWS={
   all:{n:'Обзор',h:'Всё найденное во всех разделах, самое подозрительное — сверху. Нажми на элемент, чтобы увидеть подробности.'},
-  autostart:{n:'Автозагрузка',h:'Всё, что запускается само при входе в Windows: реестр, папки, планировщик и редкие места закрепления вирусов (IFEO, AppInit, Active Setup). Службы — в разделе «Система».'}
+  autostart:{n:'Автозагрузка',h:'Всё, что запускается само при входе в Windows: реестр, папки, планировщик и редкие места закрепления вирусов (IFEO, AppInit, Active Setup). Службы — в разделе «Система».'},
+  archive:{n:'Архив',h:'Элементы, отмеченные прочитанными. Они не показываются в разделах и не считаются угрозами. Выбери элемент и нажми «Вернуть», чтобы достать его из архива.'}
 };
 const HIDE_SYS=new Set(['autostart','tasks','services','processes','network']);
 const STATE={running:'работает',stopped:'остановлена',enabled:'включена',disabled:'отключена',listen:'слушает',estab:'подключено'};
@@ -415,12 +416,12 @@ async function scanAll(){
   await Promise.all([worker(),worker(),worker(),worker()]);
   S.running=0;S.doneOnce=true;S.elapsed=((performance.now()-S.t0)/1000).toFixed(1);
   draw();
-  const f=[...S.items.values()].filter(i=>i.level==='danger'||i.level==='warn').length;
+  const f=[...S.items.values()].filter(i=>!i.ack&&(i.level==='danger'||i.level==='warn')).length;
   toast(f?`Анализ завершён за ${S.elapsed} с · требуют внимания: ${f}`:`Анализ завершён за ${S.elapsed} с · подозрительного не найдено`);
 }
 
 /* ---------- данные ---------- */
-const inScope=i=>S.view==='all'||(S.view==='autostart'?AUTO.has(i.cat):i.cat===S.view);
+const inScope=i=>S.view==='archive'?!!i.ack:!i.ack&&(S.view==='all'||(S.view==='autostart'?AUTO.has(i.cat):i.cat===S.view));
 const scope=()=>{const a=[];for(const i of S.items.values())if(inScope(i))a.push(i);return a};
 function counts(a){const c={danger:0,warn:0,note:0,ok:0,ack:0};for(const i of a)c[eff(i)]++;return c}
 function sigOk(i){
@@ -430,7 +431,7 @@ function sigOk(i){
 }
 function filtered(){
   const q=S.q.trim().toLowerCase();
-  const a=scope().filter(i=>S.lv[eff(i)]&&sigOk(i)&&(!S.hideSys||i.sig!=='system')&&(!q||i._h.includes(q)));
+  const a=scope().filter(i=>(S.view==='archive'||S.lv[eff(i)])&&sigOk(i)&&(!S.hideSys||i.sig!=='system')&&(!q||i._h.includes(q)));
   const by={
     risk:(x,y)=>y.risk-x.risk||x.name.localeCompare(y.name,'ru'),
     name:(x,y)=>x.name.localeCompare(y.name,'ru'),
@@ -450,11 +451,12 @@ const ACT={quarantine:['В карантин','Файл будет перемещ
 function draw(){drawNav();drawHead();drawStrip();drawList();drawBulk();if(S.open)drawDrawer()}
 function drawNav(){
   const flagged={},total={};
-  for(const i of S.items.values()){total[i.cat]=(total[i.cat]||0)+1;const e=eff(i);if(e==='danger'||e==='warn'){const f=flagged[i.cat]||(flagged[i.cat]={danger:0,warn:0});f[e]++}}
-  const all=counts([...S.items.values()]);
-  let h=btn('all','Обзор',ic.all,all.danger?['danger',all.danger]:all.warn?['warn',all.warn]:null,S.items.size);
+  for(const i of S.items.values()){if(i.ack)continue;total[i.cat]=(total[i.cat]||0)+1;const e=eff(i);if(e==='danger'||e==='warn'){const f=flagged[i.cat]||(flagged[i.cat]={danger:0,warn:0});f[e]++}}
+  const live=[...S.items.values()].filter(i=>!i.ack),arch=S.items.size-live.length;
+  const all=counts(live);
+  let h=btn('all','Обзор',ic.all,all.danger?['danger',all.danger]:all.warn?['warn',all.warn]:null,live.length);
   const af={danger:0,warn:0};let an=0;
-  for(const i of S.items.values())if(AUTO.has(i.cat)){an++;const e=eff(i);if(e==='danger')af.danger++;else if(e==='warn')af.warn++}
+  for(const i of S.items.values())if(AUTO.has(i.cat)&&!i.ack){an++;const e=eff(i);if(e==='danger')af.danger++;else if(e==='warn')af.warn++}
   h+=btn('autostart','Автозагрузка',ic.boot,af.danger?['danger',af.danger]:af.warn?['warn',af.warn]:null,S.doneOnce?an:null);
   let g='';
   for(const c of CATS){
@@ -466,6 +468,7 @@ function drawNav(){
     else if(f)b=f.danger?['danger',f.danger]:['warn',f.warn];
     h+=btn(c.id,c.n,ic[c.i],b,total[c.id]);
   }
+  if(arch||S.view==='archive')h+=`<div class="grp">Прочитано</div>`+btn('archive','Архив',ic.ok,null,arch);
   $('#nav').innerHTML=h;
   function btn(id,n,icon,b,t){
     let p;
@@ -476,7 +479,7 @@ function drawNav(){
   }
 }
 function drawHead(){
-  const c=CAT[S.view]||VIEWS[S.view];
+  const c=VIEWS[S.view]||CAT[S.view];
   $('#vTitle').textContent=c.n;
   $('#vDesc').textContent=c.h;
   $('#custom').classList.toggle('on',S.view==='custom');
@@ -491,24 +494,25 @@ function drawHead(){
 }
 function drawStrip(){
   const c=counts(scope());
-  $('#strip').innerHTML=['danger','warn','note','ok','ack'].map(k=>`<button class="stat ${k} ${S.lv[k]?'':'off'} ${c[k]?'':'zero'}" data-lv="${k}"><span class="n">${c[k]}</span><span class="t"><i></i>${LV[k]}</span></button>`).join('');
+  $('#strip').innerHTML=(S.view==='archive'?[]:['danger','warn','note','ok']).map(k=>`<button class="stat ${k} ${S.lv[k]?'':'off'} ${c[k]?'':'zero'}" data-lv="${k}"><span class="n">${c[k]}</span><span class="t"><i></i>${LV[k]}</span></button>`).join('');
   const all=c, here=S.view==='all'?'':' в этом разделе';
   let v='';
   const defN=[...S.items.values()].filter(i=>i.cat==='defender'&&i.level==='danger'&&!i.ack).length;
   if(S.running)v='<span class="spinner"></span> Идёт анализ, результаты появляются по мере готовности…';
   else if(!S.doneOnce)v='';
+  else if(S.view==='archive')v=`${ic.ok.replace('<svg','<svg style="color:var(--dim)"')}<span><b>В архиве: ${scope().length}.</b> Эти элементы не считаются угрозами и не показываются в других разделах.</span>`;
   else if(defN&&S.view!=='defender')v=`${ic.shield.replace('<svg','<svg style="color:var(--danger)"')}<span><b>Защитник Windows обнаружил угроз: ${defN}.</b> <a href="#" id="toDef" style="color:var(--accent)">Посмотреть</a></span>`;
   else if(all.danger)v=`${ic.warn.replace('<svg','<svg style="color:var(--danger)"')}<span><b>Опасных элементов${here}: ${all.danger}.</b> Проверь их в первую очередь.</span>`;
   else if(all.warn)v=`${ic.warn.replace('<svg','<svg style="color:var(--warn)"')}<span><b>Подозрительных элементов${here}: ${all.warn}.</b> Это не обязательно вирусы — посмотри, что именно и откуда запускается.</span>`;
   else v=`${ic.ok.replace('<svg','<svg style="color:var(--ok)"')}<span><b>Явных угроз${here} не найдено.</b> Проверено элементов: ${all.danger+all.warn+all.note+all.ok}${S.view==='all'?` за ${S.elapsed} с`:''}.</span>`;
   $('#verdict').innerHTML=v;
   const ua=scope().filter(i=>!i.ack&&(i.level==='danger'||i.level==='warn')).length;
-  const ab=$('#ackAll');ab.style.display=ua?'':'none';ab.textContent=`Прочитать все (${ua})`;
+  const ab=$('#ackAll');ab.style.display=ua?'':'none';ab.textContent=`В архив все (${ua})`;
   drawPlaces();
 }
 function drawPlaces(){
   const f={},t={};
-  for(const i of S.items.values()){t[i.cat]=(t[i.cat]||0)+1;const e=eff(i);if(e==='danger')f[i.cat]='danger';else if(e==='warn'&&f[i.cat]!=='danger')f[i.cat]='warn'}
+  for(const i of S.items.values()){if(i.ack)continue;t[i.cat]=(t[i.cat]||0)+1;const e=eff(i);if(e==='danger')f[i.cat]='danger';else if(e==='warn'&&f[i.cat]!=='danger')f[i.cat]='warn'}
   $('#places').innerHTML=CATS.filter(c=>c.id!=='custom'&&(!c.opt||S.set[c.opt])).map(c=>{
     const st=S.cats[c.id];
     const cls=st&&st.busy&&S.running?'busy':(f[c.id]||'clean');
@@ -525,13 +529,13 @@ function row(i){
   let tags='';
   if(S.view==='all')tags+=`<span class="tag cat">${esc(c.n)}</span>`;
   if(i.wl)tags+=`<span class="tag good">Доверенный</span>`;
-  if(eff(i)==='ack')tags+=`<span class="tag">Прочитано</span>`;
+  if(i.ack)tags+=`<span class="tag">${LV[i.level]}</span>`;
   if(i.state)tags+=`<span class="tag ${i.state==='running'?'good':''}">${STATE[i.state]||esc(i.state)}</span>`;
   if(i.start&&i.start!=='?'&&i.cat==='services')tags+=`<span class="tag">${esc(i.start)}</span>`;
   if(sg&&i.sig!=='none')tags+=`<span class="tag ${sg[1]}">${sg[0]}</span>`;
   if(i.size>=0&&(i.cat==='files'||['roaming','temp','programdata','custom'].includes(i.cat)))tags+=`<span class="tag">${fmtSize(i.size)}</span>`;
   const p=i.cat==='processes'?(i.path||'путь недоступен'):i.detail;
-  return `<div class="row lv-${eff(i)} ${S.open===i.id?'act':''}" data-id="${i.id}">
+  return `<div class="row lv-${i.ack?'ack':i.level} ${S.open===i.id?'act':''}" data-id="${i.id}">
     <label class="chk ${can?'':'none'}"><input type="checkbox" ${S.sel.has(i.id)?'checked':''}></label>
     <span class="dot"></span>
     <div class="rmain"><div class="nm">${i.dir?'📁 ':''}${esc(i.name)}${sub?`<span class="sub">${esc(sub)}</span>`:''}</div><div class="pth" title="${esc(p)}">${esc(p)}</div></div>
@@ -566,7 +570,7 @@ function drawBulk(){
   const allAck=sel.length&&sel.every(i=>i.ack);
   $('#bulkN').textContent=`Выбрано: ${n}`;
   $('#bulkTrust').style.display=S.set.whitelist&&!anyDef?'':'none';
-  $('#bulkAck').textContent=allAck?'Вернуть в непрочитанные':'Прочитано';
+  $('#bulkAck').textContent=allAck?'Вернуть из архива':'В архив (прочитано)';
   $('#bulkGo').style.display=allAct?'':'none';
   if(allAct)$('#bulkGo').innerHTML=ic.trash+(acts.size===1?ACT[[...acts][0]][0]:'Применить');
 }
@@ -579,7 +583,7 @@ function drawDrawer(){
     :`<ul class="why clean"><li>${ic.ok}<span>Подозрительных признаков не найдено.</span></li></ul>`;
   const act=i.action?ACT[i.action]:null;
   $('#drawer').innerHTML=`
-   <div class="dh"><div style="flex:1;min-width:0"><h2>${esc(i.name)}</h2><span class="lvl ${i.level}">${LV[i.level]} · ${i.risk}/100</span>${eff(i)==='ack'?' <span class="lvl ok" style="background:var(--panel2);color:var(--dim)">Прочитано</span>':''}</div><button class="iconbtn" id="dClose" title="Закрыть (Esc)">${ic.x}</button></div>
+   <div class="dh"><div style="flex:1;min-width:0"><h2>${esc(i.name)}</h2><span class="lvl ${i.level}">${LV[i.level]} · ${i.risk}/100</span>${i.ack?' <span class="lvl ok" style="background:var(--panel2);color:var(--dim)">В архиве</span>':''}</div><button class="iconbtn" id="dClose" title="Закрыть (Esc)">${ic.x}</button></div>
    <div class="db"><div class="sect">Почему так</div>${why}
    <div class="sect">Подробности</div><dl class="kv">
     ${kv('Раздел',CAT[i.cat].n)}${kv('Описание',i.sub)}
@@ -594,7 +598,7 @@ function drawDrawer(){
    <div class="df">
     ${(i.full||i.path)?`<button class="btn" id="dReveal">${ic.open}Показать в папке</button>`:''}
     <button class="btn" id="dCopy">${ic.copy}Копировать путь</button>
-    ${(i.level==='danger'||i.level==='warn'||i.level==='note')&&!i.wl?(i.ack?`<button class="btn" id="dUnack">${ic.ok}Вернуть в непрочитанные</button>`:`<button class="btn ${i.cat==='defender'?'primary':''}" id="dAck">${ic.ok}Отметить прочитанным</button>`):''}
+    ${(i.level==='danger'||i.level==='warn'||i.level==='note')&&!i.wl?(i.ack?`<button class="btn" id="dUnack">${ic.ok}Вернуть из архива</button>`:`<button class="btn ${i.cat==='defender'?'primary':''}" id="dAck">${ic.ok}В архив (прочитано)</button>`):''}
     ${S.set.whitelist&&i.cat!=='defender'?(i.wl?`<button class="btn" id="dUntrust">${ic.star}Убрать из белого списка</button>`:`<button class="btn" id="dTrust">${ic.star}Доверять</button>`):''}
     ${S.set.defender&&(i.full||i.path)?`<button class="btn" id="dDef">${ic.shield}Проверить Защитником</button>`:''}
     ${act?`<button class="btn ${i.level==='danger'||i.level==='warn'?'danger':''}" id="dAct">${ic.trash}${act[0]}</button>`:''}
@@ -716,7 +720,7 @@ async function ackItems(ids,on){
   if(!ids.length)return;
   const r=await api('/api/ack',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'ids='+ids.join(',')+'&on='+(on?1:0)});
   applyItems(r.items||[]);S.sel.clear();drawBulk();
-  toast(on?`Отмечено прочитанным: ${ids.length}`:'Возвращено в непрочитанные');
+  toast(on?`В архиве: ${ids.length}`:`Возвращено из архива: ${ids.length}`);
 }
 $('#bulkTrust').onclick=()=>trust([...S.sel],true);
 $('#bulkAck').onclick=()=>{
