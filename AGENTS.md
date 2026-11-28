@@ -15,6 +15,6 @@ Do not present it as a full antivirus replacement.
 
 ## Working on the code
 - Sources: `scan.cpp` (scanner), `webmode.h` (HTTP server + API), `ui.html` (UI, embedded into the exe).
-- Build on Windows: `build.ps1 -Out SySscaner.exe` (MSYS2 g++, links winhttp).
+- Build on Windows: `build.ps1 -Out SimpleWarnAnalyzer.exe` (MSYS2 g++, links winhttp).
 - UI strings are Russian in source; English/Italian live in the `I18N_T` / `I18N_RULES` dictionaries in `ui.html`.
 - Commits are made as the repository owner; do not add AI attribution lines.

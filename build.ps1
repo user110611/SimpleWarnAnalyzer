@@ -1,6 +1,6 @@
-# Build SySscaner.exe: embeds ui.html and compiles scan.cpp (needs g++ from MSYS2/MinGW).
+# Build SimpleWarnAnalyzer.exe: embeds ui.html and compiles scan.cpp (needs g++ from MSYS2/MinGW).
 # NOTE: keep this file ASCII-only (Windows PowerShell 5.1 reads BOM-less files as ANSI).
-param([string]$Out = 'SySscaner.exe')
+param([string]$Out = 'SimpleWarnAnalyzer.exe')
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 

@@ -487,7 +487,7 @@ int main(int argc, char** argv) {
     bool consoleMode = false;
     for (int i = 1; i < argc; i++)
         if (!strcmp(argv[i], "--console")) consoleMode = true;
-    if (!consoleMode) return runWeb(argc, argv);   // старое меню: SySscaner.exe --console
+    if (!consoleMode) return runWeb(argc, argv);   // старое меню: SimpleWarnAnalyzer.exe --console
 
     for (;;) {
         menu();

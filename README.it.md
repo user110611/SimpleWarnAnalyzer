@@ -31,12 +31,12 @@ Uno scanner per Windows in un solo file (senza installazione, senza cloud, senza
 
 ## Avvio
 
-Scarica `SySscaner.exe` dalla pagina [Releases](../../releases) e avvialo — il browser aprirà `http://127.0.0.1:8787`. Per l'accesso completo avvialo come amministratore.
+Scarica `SimpleWarnAnalyzer.exe` dalla pagina [Releases](../../releases) e avvialo — il browser aprirà `http://127.0.0.1:8787`. Per l'accesso completo avvialo come amministratore.
 
 ```
-SySscaner.exe                 # interfaccia web
-SySscaner.exe --console       # vecchio menu da console
-SySscaner.exe --no-open --port 8787
+SimpleWarnAnalyzer.exe                 # interfaccia web
+SimpleWarnAnalyzer.exe --console       # vecchio menu da console
+SimpleWarnAnalyzer.exe --no-open --port 8787
 ```
 
 I tuoi dati (archivio, registro, lista bianca, impostazioni) si trovano nella cartella `Данные` accanto all'exe.

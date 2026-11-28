@@ -440,7 +440,7 @@ const I18N_T=[
 ["Прочитано","Read","Letto"],
 ["Доверять","Trust","Considera attendibile"],
 ["Удалить","Delete","Elimina"],
-["Запущенная версия сканера устарела — в ней нет этой функции. Закрой SySscaner, запусти build.bat и открой сканер заново.","This scanner version is outdated and lacks this feature. Close SySscaner, run build.bat and open it again.","Questa versione dello scanner è obsoleta e non ha questa funzione. Chiudi SySscaner, esegui build.bat e riaprilo."],
+["Запущенная версия сканера устарела — в ней нет этой функции. Закрой SimpleWarnAnalyzer, запусти build.bat и открой сканер заново.","This scanner version is outdated and lacks this feature. Close SimpleWarnAnalyzer, run build.bat and open it again.","Questa versione dello scanner è obsoleta e non ha questa funzione. Chiudi SimpleWarnAnalyzer, esegui build.bat e riaprilo."],
 ["Автозапуск","Autorun","Esecuzione automatica"],
 ["Run · пользователь","Run · user","Run · utente"],
 ["Run (HKCU) — программы, запускающиеся при входе текущего пользователя. Самое частое место автозапуска вирусов.","Run (HKCU) — programs launched when the current user signs in. The most common autorun spot for malware.","Run (HKCU) — programmi avviati all'accesso dell'utente corrente. Il punto di avvio automatico più comune per i malware."],
@@ -615,7 +615,7 @@ const I18N_T=[
 ["Убрано из белого списка","Removed from whitelist","Rimosso dalla lista bianca"],
 ["Не удалось изменить архив — обнови список","Could not change the archive — refresh the list","Impossibile modificare l'archivio — aggiorna l'elenco"],
 ["Сканер остановлен","Scanner stopped","Scanner arrestato"],
-["Можно закрыть эту вкладку. Чтобы запустить снова — открой SySscaner.exe.","You can close this tab. To start again, open SySscaner.exe.","Puoi chiudere questa scheda. Per riavviare, apri SySscaner.exe."],
+["Можно закрыть эту вкладку. Чтобы запустить снова — открой SimpleWarnAnalyzer.exe.","You can close this tab. To start again, open SimpleWarnAnalyzer.exe.","Puoi chiudere questa scheda. Per riavviare, apri SimpleWarnAnalyzer.exe."],
 ["Использовать белый список","Use whitelist","Usa la lista bianca"],
 ["Элементы, помеченные «Доверять», показываются как чистые и не попадают в подозрения. Для файлов запоминается и контрольная сумма: если файл изменится — доверие снимется.","Items marked “Trust” are shown as clean and are not suspected. For files the checksum is stored too: if the file changes, trust is withdrawn.","Le voci segnate «Considera attendibile» appaiono come pulite e non vengono sospettate. Per i file viene salvato anche il checksum: se il file cambia, la fiducia viene revocata."],
 ["Убрать","Remove","Rimuovi"],
@@ -954,7 +954,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(p,o={}){
   const r=await fetch(p,{...o,headers:{'X-Token':TOKEN,...(o.headers||{})}});
-  if(r.status===404)return{ok:false,error:'Запущенная версия сканера устарела — в ней нет этой функции. Закрой SySscaner, запусти build.bat и открой сканер заново.'};
+  if(r.status===404)return{ok:false,error:'Запущенная версия сканера устарела — в ней нет этой функции. Закрой SimpleWarnAnalyzer, запусти build.bat и открой сканер заново.'};
   return r.json();
 }
 const ic={
@@ -1468,7 +1468,7 @@ $('#menu').onclick=async e=>{
   if(m==='csv'||m==='json')exportData(m);
   else if(m==='settings')openSettings();
   else if(m==='elev')elevate();
-  else if(m==='quit'){await api('/api/shutdown',{method:'POST'}).catch(()=>{});document.body.innerHTML='<div class="empty" style="height:100%"><h3>Сканер остановлен</h3><p>Можно закрыть эту вкладку. Чтобы запустить снова — открой SySscaner.exe.</p></div>'}
+  else if(m==='quit'){await api('/api/shutdown',{method:'POST'}).catch(()=>{});document.body.innerHTML='<div class="empty" style="height:100%"><h3>Сканер остановлен</h3><p>Можно закрыть эту вкладку. Чтобы запустить снова — открой SimpleWarnAnalyzer.exe.</p></div>'}
 };
 /* ---------- настройки ---------- */
 let setDirty=false;

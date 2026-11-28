@@ -31,12 +31,12 @@ A single-file Windows scanner (no installer, no cloud, no telemetry) that collec
 
 ## Run
 
-Download `SySscaner.exe` from the [Releases](../../releases) page and start it — your browser opens `http://127.0.0.1:8787`. For full access run it as administrator.
+Download `SimpleWarnAnalyzer.exe` from the [Releases](../../releases) page and start it — your browser opens `http://127.0.0.1:8787`. For full access run it as administrator.
 
 ```
-SySscaner.exe                 # web interface
-SySscaner.exe --console       # legacy console menu
-SySscaner.exe --no-open --port 8787
+SimpleWarnAnalyzer.exe                 # web interface
+SimpleWarnAnalyzer.exe --console       # legacy console menu
+SimpleWarnAnalyzer.exe --no-open --port 8787
 ```
 
 Your data (archive, journal, whitelist, settings) lives in the `Данные` ("Data") folder next to the exe.
@@ -44,7 +44,7 @@ Your data (archive, journal, whitelist, settings) lives in the `Данные` ("
 ## FAQ
 
 **How do I quickly check my Windows PC for malware?**
-Download `SySscaner.exe` from [Releases](../../releases/latest), run it (as administrator for full access) and read the Home page: it answers "All good" or "Needs checking" within seconds and shows what to do about each finding.
+Download `SimpleWarnAnalyzer.exe` from [Releases](../../releases/latest), run it (as administrator for full access) and read the Home page: it answers "All good" or "Needs checking" within seconds and shows what to do about each finding.
 
 **How can I see what starts with Windows and what is connecting to the internet?**
 The scanner lists every autostart location (Run/RunOnce, Winlogon, Startup folders, Task Scheduler, services, IFEO, AppInit_DLLs) and all active network connections with the owning process.

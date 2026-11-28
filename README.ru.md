@@ -31,12 +31,12 @@
 
 ## Запуск
 
-Скачайте `SySscaner.exe` на странице [Releases](../../releases) и запустите — в браузере откроется `http://127.0.0.1:8787`. Для полного доступа запускайте от администратора.
+Скачайте `SimpleWarnAnalyzer.exe` на странице [Releases](../../releases) и запустите — в браузере откроется `http://127.0.0.1:8787`. Для полного доступа запускайте от администратора.
 
 ```
-SySscaner.exe                 # веб-интерфейс
-SySscaner.exe --console       # старое консольное меню
-SySscaner.exe --no-open --port 8787
+SimpleWarnAnalyzer.exe                 # веб-интерфейс
+SimpleWarnAnalyzer.exe --console       # старое консольное меню
+SimpleWarnAnalyzer.exe --no-open --port 8787
 ```
 
 Ваши данные (архив, журнал, белый список, настройки) хранятся в папке `Данные` рядом с exe.
