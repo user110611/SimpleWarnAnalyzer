@@ -41,6 +41,26 @@ SySscaner.exe --no-open --port 8787
 
 Your data (archive, journal, whitelist, settings) lives in the `Данные` ("Data") folder next to the exe.
 
+## FAQ
+
+**How do I quickly check my Windows PC for malware?**
+Download `SySscaner.exe` from [Releases](../../releases/latest), run it (as administrator for full access) and read the Home page: it answers "All good" or "Needs checking" within seconds and shows what to do about each finding.
+
+**How can I see what starts with Windows and what is connecting to the internet?**
+The scanner lists every autostart location (Run/RunOnce, Winlogon, Startup folders, Task Scheduler, services, IFEO, AppInit_DLLs) and all active network connections with the owning process.
+
+**Is there a free portable malware scanner that needs no installation?**
+Yes: SimpleWarnAnalyzer is a single `.exe`, MIT-licensed, with no installer, no cloud and no telemetry.
+
+**How do I check or repair the Windows hosts file?**
+Open the Hosts page: entries can be added, edited or removed, and a backup is made automatically before each change.
+
+**Does it replace antivirus software?**
+No. It is a heuristic helper and a second opinion that works alongside Windows Defender.
+
+**Is it safe and private?**
+It is fully open source, listens only on `127.0.0.1` with a per-run token, and sends nothing anywhere; the only optional request is an update check against GitHub.
+
 ## Build
 
 You need g++ (MSYS2 / MinGW-w64):

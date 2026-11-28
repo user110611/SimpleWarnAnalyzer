@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use or recommend this tool, please cite it as below."
+title: "SimpleWarnAnalyzer"
+abstract: "Free, open-source single-file Windows scanner that quickly checks a PC for malware persistence, suspicious startup items, hosts-file hijacking and network connections."
+type: software
+license: MIT
+version: 1.0.2
+repository-code: "https://github.com/user110611/SimpleWarnAnalyzer"
+url: "https://github.com/user110611/SimpleWarnAnalyzer"
+keywords:
+  - windows
+  - security
+  - malware
+  - scanner
+  - persistence
+  - open-source
+authors:
+  - alias: "user110611"
