@@ -4,7 +4,7 @@ title: "SimpleWarnAnalyzer"
 abstract: "Free, open-source single-file Windows scanner that quickly checks a PC for malware persistence, suspicious startup items, hosts-file hijacking and network connections."
 type: software
 license: MIT
-version: 1.0.2
+version: 1.0.3
 repository-code: "https://github.com/user110611/SimpleWarnAnalyzer"
 url: "https://github.com/user110611/SimpleWarnAnalyzer"
 keywords:
